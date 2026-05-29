@@ -1,0 +1,11 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="630" rx="96" fill="#121019"/>
+  <circle cx="920" cy="96" r="230" fill="#D0BCFF" fill-opacity=".13"/>
+  <circle cx="210" cy="520" r="260" fill="#F2B8B5" fill-opacity=".10"/>
+  <path d="M316 160C316 128.52 341.52 103 373 103H614C683.036 103 739 158.964 739 228V470C739 501.48 713.48 527 682 527H441C371.964 527 316 471.036 316 402V160Z" fill="#211E27" stroke="#D0BCFF" stroke-width="18"/>
+  <path d="M407 210H492L623 394V210H706V420C706 445.405 685.405 466 660 466H587L456 282V466H373V244C373 225.222 388.222 210 407 210Z" fill="#D0BCFF"/>
+  <path d="M778 205C837.647 231.481 880 291.824 880 362.5C880 433.176 837.647 493.519 778 520" stroke="#F2B8B5" stroke-width="28" stroke-linecap="round"/>
+  <path d="M811 283C837.607 300.298 855 329.743 855 363C855 396.257 837.607 425.702 811 443" stroke="#F2B8B5" stroke-width="18" stroke-linecap="round"/>
+  <text x="92" y="558" fill="#F4EFF4" font-family="Sora, Arial, sans-serif" font-size="76" font-weight="800" letter-spacing="-3">Naraya</text>
+  <text x="94" y="598" fill="#CAC4D0" font-family="Manrope, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="7">IMMERSIVE COMIC READER</text>
+</svg>

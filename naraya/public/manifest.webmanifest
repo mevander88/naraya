@@ -1,0 +1,17 @@
+{
+  "name": "Naraya",
+  "short_name": "Naraya",
+  "description": "Platform baca komik dan nonton anime dengan reader serta player Naraya.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121019",
+  "theme_color": "#D0BCFF",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

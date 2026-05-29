@@ -1,0 +1,112 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at 72% 6%, rgba(208, 188, 255, 0.14), transparent 26rem),
+    linear-gradient(180deg, #15121b 0%, #0f0d15 100%);
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .glass-panel {
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(33, 30, 39, 0.82);
+  }
+
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .reveal-up {
+    animation: reveal-up 520ms var(--ease-out-quart) both;
+  }
+
+  .reveal-soft {
+    animation: reveal-soft 420ms var(--ease-out-quart) both;
+  }
+
+  .stagger-1 { animation-delay: 70ms; }
+  .stagger-2 { animation-delay: 140ms; }
+  .stagger-3 { animation-delay: 210ms; }
+
+  .interactive-lift {
+    transition: transform 220ms var(--ease-out-quart), border-color 220ms var(--ease-out-quart), filter 220ms var(--ease-out-quart);
+  }
+
+  .interactive-lift:hover {
+    transform: translateY(-3px);
+  }
+
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+    background: linear-gradient(110deg, rgba(255,255,255,.06), rgba(255,255,255,.12), rgba(255,255,255,.06));
+    background-size: 220% 100%;
+    animation: skeleton-pan 1.35s var(--ease-out-quint) infinite;
+  }
+
+  .content-visibility-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 720px;
+  }
+}
+
+@keyframes reveal-up {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes reveal-soft {
+  from { opacity: 0; transform: scale(.985); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes skeleton-pan {
+  from { background-position: 180% 0; }
+  to { background-position: -40% 0; }
+}
+
+@keyframes hero-kenburns {
+  from { opacity: 0; transform: scale(1.018); filter: saturate(.96); }
+  to { opacity: 1; transform: scale(1); filter: saturate(1); }
+}
+
+@keyframes hero-copy {
+  from { opacity: 0; transform: translate3d(0, 16px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
