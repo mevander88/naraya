@@ -13,7 +13,7 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 
 body {
@@ -42,10 +42,12 @@ body {
 
   .reveal-up {
     animation: reveal-up 520ms var(--ease-out-quart) both;
+    will-change: opacity, transform;
   }
 
   .reveal-soft {
     animation: reveal-soft 420ms var(--ease-out-quart) both;
+    will-change: opacity, transform;
   }
 
   .stagger-1 { animation-delay: 70ms; }
@@ -73,6 +75,10 @@ body {
     content-visibility: auto;
     contain-intrinsic-size: 1px 720px;
   }
+
+  .image-render-safe {
+    background-color: rgba(255, 255, 255, 0.04);
+  }
 }
 
 @keyframes reveal-up {
@@ -91,8 +97,8 @@ body {
 }
 
 @keyframes hero-kenburns {
-  from { opacity: 0; transform: scale(1.018); filter: saturate(.96); }
-  to { opacity: 1; transform: scale(1); filter: saturate(1); }
+  from { opacity: 0; transform: scale(1.018); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes hero-copy {

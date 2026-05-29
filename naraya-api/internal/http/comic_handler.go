@@ -105,6 +105,15 @@ func (h *ComicHandler) Navigation(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"items": result})
 }
 
+func (h *ComicHandler) Sitemap(c *fiber.Ctx) error {
+	c.Set("Cache-Control", "public, max-age=3600")
+	result, err := h.service.SitemapCatalog(c.Context())
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadGateway, err.Error())
+	}
+	return c.JSON(result)
+}
+
 func (h *ComicHandler) Detail(c *fiber.Ctx) error {
 	c.Set("Cache-Control", "public, max-age=300")
 	result, err := h.service.Detail(c.Context(), c.Params("slug"))
@@ -180,6 +189,7 @@ func (h *ComicHandler) Image(c *fiber.Ctx) error {
 	}
 	c.Set("Content-Type", contentType)
 	c.Set("Cache-Control", "public, max-age=604800, immutable")
+	c.Set("Cross-Origin-Resource-Policy", "cross-origin")
 	if length := res.Header.Get("Content-Length"); length != "" {
 		c.Set("Content-Length", length)
 	}

@@ -1,5 +1,13 @@
 import { Check } from 'lucide-react';
+import type { Metadata } from 'next';
 import { getSettings } from '../data';
+
+export const metadata: Metadata = {
+  title: 'Settings',
+  description: 'Pengaturan pengalaman baca dan nonton akun Naraya.',
+  alternates: { canonical: '/settings' },
+  robots: { index: false, follow: false },
+};
 
 export default async function SettingsPage() {
   const settings = await getSettings();
@@ -13,7 +21,7 @@ export default async function SettingsPage() {
   return (
     <section className="px-container-mobile pt-28 md:px-container-desktop">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Settings</p>
-      <h2 className="mt-2 font-display text-4xl font-bold">Preferensi baca</h2>
+      <h1 className="mt-2 font-display text-4xl font-bold">Preferensi baca</h1>
       <p className="mt-3 max-w-2xl text-on-surface-variant">Atur pengalaman baca Naraya agar sesuai dengan kebiasaanmu.</p>
       <div className="mt-8 grid gap-4 md:grid-cols-2">
         {rows.map(([title, desc, enabled]) => (

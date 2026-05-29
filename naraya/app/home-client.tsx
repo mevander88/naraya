@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Play } from 'lucide-react';
 import Link from 'next/link';
 import { HomeHeroSlider } from './home-hero-slider';
@@ -40,6 +40,14 @@ export function HomeClient({ heroItems = [], comics = [], series = [], genres = 
     <>
       <HomeHeroSlider comics={heroItems} activeIndex={activeIndex} />
       <HeroControlRail slides={slides} activeIndex={activeIndex} onSelect={setActiveIndex} />
+      <HomeStaticSections heroItems={heroItems} comics={comics} series={series} genres={genres} />
+    </>
+  );
+}
+
+const HomeStaticSections = memo(function HomeStaticSections({ heroItems, comics, series, genres }: { heroItems: ComicCardData[]; comics: ComicCardData[]; series: ComicCardData[]; genres: string[] }) {
+  return (
+    <>
       <TrendingRail title="Sorotan Utama" href="/komik" comics={heroItems.slice(0, 18)} />
       <GenreChips genres={genres} />
       <TrendingRail title="Anime Terbaru" href="/komik" comics={series} />
@@ -48,7 +56,7 @@ export function HomeClient({ heroItems = [], comics = [], series = [], genres = 
       <UpdatesGrid title="Update Anime Terbaru" comics={series} />
     </>
   );
-}
+});
 
 function HeroControlRail({
   slides,
@@ -62,6 +70,9 @@ function HeroControlRail({
   const activeComic = slides[activeIndex] ?? slides[0];
   const railRef = useRef<HTMLDivElement | null>(null);
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const setCardRef = useCallback((index: number) => (node: HTMLButtonElement | null) => {
+    cardRefs.current[index] = node;
+  }, []);
 
   useEffect(() => {
     const rail = railRef.current;
@@ -72,22 +83,24 @@ function HeroControlRail({
       animateRailScroll(rail, 0);
       return;
     }
-    const maxScroll = Math.max(0, rail.scrollWidth - rail.clientWidth);
+    const railScrollLeft = rail.scrollLeft;
+    const railClientWidth = rail.clientWidth;
+    const maxScroll = Math.max(0, rail.scrollWidth - railClientWidth);
     const firstCard = cardRefs.current[0];
     const secondCard = cardRefs.current[1];
     const cardStep = firstCard && secondCard ? secondCard.offsetLeft - firstCard.offsetLeft : card.offsetWidth + 8;
     const cardLeft = firstCard ? firstCard.offsetLeft + activeIndex * cardStep : card.offsetLeft;
     const safeGap = 28;
     const cardRight = cardLeft + card.offsetWidth;
-    const visibleLeft = rail.scrollLeft + safeGap;
-    const visibleRight = rail.scrollLeft + rail.clientWidth - safeGap;
-    let nextLeft = rail.scrollLeft;
+    const visibleLeft = railScrollLeft + safeGap;
+    const visibleRight = railScrollLeft + railClientWidth - safeGap;
+    let nextLeft = railScrollLeft;
     if (cardLeft < visibleLeft) {
       nextLeft = Math.max(0, cardLeft - safeGap);
     } else if (cardRight > visibleRight) {
-      nextLeft = Math.min(maxScroll, cardRight - rail.clientWidth + safeGap);
+      nextLeft = Math.min(maxScroll, cardRight - railClientWidth + safeGap);
     }
-    if (nextLeft === rail.scrollLeft) return;
+    if (nextLeft === railScrollLeft) return;
 
     return animateRailScroll(rail, nextLeft);
   }, [activeIndex]);
@@ -114,9 +127,9 @@ function HeroControlRail({
             <div className="absolute inset-0 bg-gradient-to-r from-primary/14 via-background/10 to-transparent" />
             <div className="relative max-w-[72%]">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Sedang tampil</p>
-              <h3 className="mt-3 line-clamp-2 font-display text-2xl font-bold leading-tight text-on-surface">
+              <h2 className="mt-3 line-clamp-2 font-display text-2xl font-bold leading-tight text-on-surface">
                 {activeComic.title}
-              </h3>
+              </h2>
               <p className="mt-2 line-clamp-2 text-sm leading-6 text-on-surface-variant">{activeComic.episode}</p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
@@ -137,10 +150,8 @@ function HeroControlRail({
 
               return (
                 <button
-                  key={comic.slug}
-                  ref={(node) => {
-                    cardRefs.current[index] = node;
-                  }}
+                  key={`${comic.kind || 'item'}-${comic.slug}-${index}`}
+                  ref={setCardRef(index)}
                   type="button"
                   onClick={() => onSelect(index)}
                   aria-label={`Tampilkan ${comic.title}`}
@@ -157,7 +168,7 @@ function HeroControlRail({
                       alt=""
                       loading="lazy"
                       decoding="async"
-                      className={`h-full w-full object-cover transition duration-700 ease-out ${
+                      className={`image-render-safe h-full w-full object-cover transition duration-700 ease-out ${
                         isActive ? 'scale-105 saturate-110' : 'scale-100 saturate-75 group-hover:scale-105 group-hover:saturate-100'
                       }`}
                     />

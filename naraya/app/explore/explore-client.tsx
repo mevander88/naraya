@@ -209,7 +209,7 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
   return (
     <section className="px-container-mobile pb-8 pt-28 md:px-container-desktop">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Explore</p>
-      <h2 className="mt-2 font-display text-4xl font-bold">Temukan serial baru</h2>
+      <h1 className="mt-2 font-display text-4xl font-bold">Temukan serial baru</h1>
       <p className="mt-3 max-w-2xl text-on-surface-variant">
         {filters.query ? `Hasil pencarian untuk "${filters.query}"` : 'Jelajahi update terbaru dan daftar genre pilihan Naraya.'}
       </p>

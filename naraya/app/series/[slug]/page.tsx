@@ -20,13 +20,13 @@ export async function generateMetadata({ params }: { params: { slug: string } })
       title: `${detail.title} | Naraya`,
       description,
       url: `/series/${params.slug}`,
-      images: detail.cover ? [{ url: detail.cover, alt: detail.title }] : undefined,
+      images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: detail.title }],
     },
     twitter: {
       card: 'summary_large_image',
       title: `${detail.title} | Naraya`,
       description,
-      images: detail.cover ? [detail.cover] : undefined,
+      images: ['/opengraph-image'],
     },
   };
 }
@@ -46,9 +46,26 @@ export default async function SeriesDetailPage({ params }: { params: { slug: str
     kind: 'series',
     latestChapterSlug: latest?.slug,
   };
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'TVSeries',
+    name: detail.title,
+    url: `https://naraya.biz.id/series/${detail.slug}`,
+    image: detail.cover,
+    description: detail.description,
+    genre: detail.genres,
+    inLanguage: 'id',
+    publisher: {
+      '@type': 'Organization',
+      name: 'Naraya',
+      url: 'https://naraya.biz.id',
+    },
+    numberOfEpisodes: detail.episodes.length,
+  };
 
   return (
     <section className="px-container-mobile pb-20 pt-28 md:px-container-desktop">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
         <div>
           {detail.cover ? (

@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: 'Daftar Akun',
   description: 'Buat akun Naraya untuk menyimpan library, bookmark, progress baca, dan komentar.',
   alternates: { canonical: '/register' },
+  robots: { index: false, follow: false },
 };
 
 export default function RegisterPage() {

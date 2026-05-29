@@ -505,4 +505,17 @@ export async function getGenreItems(): Promise<CatalogItem[]> {
     return [];
   }
 }
+
+export async function getSitemapCatalogItems(): Promise<CatalogItem[]> {
+  try {
+    const response = await fetch(`${apiBaseURL()}/sitemap`, {
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { items?: CatalogItem[] };
+    return payload.items ?? [];
+  } catch {
+    return [];
+  }
+}
 import { cookies } from 'next/headers';

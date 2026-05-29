@@ -148,7 +148,7 @@ export default async function WatchEpisodePage({ params }: { params: { slug: str
           </div>
           <p className="text-sm text-on-surface-variant">{comments.length} komentar</p>
         </div>
-        <CommentComposer comicSlug={series?.slug ?? reader.seriesSlug ?? reader.slug} chapterSlug={reader.slug} initialComments={comments} variant="embedded" />
+        <CommentComposer comicSlug={series?.slug ?? reader.seriesSlug ?? reader.slug} chapterSlug={reader.slug} variant="embedded" />
       </div>
     </section>
   );

@@ -1,6 +1,14 @@
 import { Bell } from 'lucide-react';
 import Link from 'next/link';
+import type { Metadata } from 'next';
 import { getLatestComics } from '../data';
+
+export const metadata: Metadata = {
+  title: 'Notifikasi',
+  description: 'Notifikasi personal Naraya untuk update chapter, episode, dan aktivitas favorit.',
+  alternates: { canonical: '/notifications' },
+  robots: { index: false, follow: false },
+};
 
 export default async function NotificationsPage() {
   const updates = await getLatestComics();
@@ -8,7 +16,7 @@ export default async function NotificationsPage() {
   return (
     <section className="px-container-mobile pt-28 md:px-container-desktop">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Alerts</p>
-      <h2 className="mt-2 font-display text-4xl font-bold">Notifikasi</h2>
+      <h1 className="mt-2 font-display text-4xl font-bold">Notifikasi</h1>
       <p className="mt-3 max-w-2xl text-on-surface-variant">Pantau chapter, episode, dan pembaruan favoritmu di Naraya.</p>
       <div className="mt-8 grid gap-3">
         {updates.slice(0, 12).map((comic) => (

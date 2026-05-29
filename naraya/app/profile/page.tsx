@@ -1,6 +1,14 @@
 import { getLibrary, getMe } from '../data';
+import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+
+export const metadata: Metadata = {
+  title: 'Profil',
+  description: 'Profil akun Naraya untuk melihat library, role, dan aktivitas baca.',
+  alternates: { canonical: '/profile' },
+  robots: { index: false, follow: false },
+};
 
 export default async function ProfilePage() {
   const isLoggedIn = Boolean(cookies().get('naraya_session')?.value);
@@ -17,7 +25,7 @@ export default async function ProfilePage() {
         <div className="h-36 bg-[linear-gradient(120deg,#37333d,#a078ff,#ffb869)]" />
         <div className="-mt-12 px-6 pb-6">
           <img src={user.avatarUrl || '/logo.svg'} alt={user.displayName} width={96} height={96} loading="lazy" decoding="async" className="reveal-soft h-24 w-24 rounded-2xl border-4 border-background object-cover" />
-          <h2 className="mt-4 font-display text-3xl font-bold">{user.displayName}</h2>
+          <h1 className="mt-4 font-display text-3xl font-bold">{user.displayName}</h1>
           <p className="mt-2 max-w-xl text-on-surface-variant">{user.bio}</p>
           <div className="mt-6 grid grid-cols-3 gap-3 text-center">
             {[

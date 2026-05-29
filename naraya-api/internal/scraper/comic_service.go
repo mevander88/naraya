@@ -380,6 +380,54 @@ func (s *Service) Navigation(ctx context.Context) ([]model.MenuItem, error) {
 	return items, nil
 }
 
+func (s *Service) SitemapCatalog(ctx context.Context) (model.PagedCatalog, error) {
+	if cached, ok := s.catalogCache.Get("sitemap:catalog"); ok {
+		return cached, nil
+	}
+	body, _, err := s.client.getBytes(ctx, "/sitemap_index.xml")
+	if err != nil {
+		return model.PagedCatalog{}, err
+	}
+	var index sitemapIndex
+	if err := xml.Unmarshal(body, &index); err != nil {
+		return model.PagedCatalog{}, err
+	}
+
+	seen := map[string]bool{}
+	items := make([]model.CatalogItem, 0)
+	for _, entry := range index.Sitemaps {
+		loc := strings.TrimSpace(entry.Loc)
+		if loc == "" || !isCatalogSitemap(loc) {
+			continue
+		}
+		pageItems, err := s.parseURLSet(ctx, loc, "")
+		if err != nil {
+			continue
+		}
+		for _, item := range pageItems {
+			if item.URL == "" || seen[item.URL] {
+				continue
+			}
+			sourceType := catalogSourceType(item.URL)
+			if sourceType == "" {
+				continue
+			}
+			item.SourceType = sourceType
+			seen[item.URL] = true
+			items = append(items, item)
+		}
+	}
+
+	result := model.PagedCatalog{
+		Page:       1,
+		TotalPages: 1,
+		TotalItems: strconv.Itoa(len(items)),
+		Items:      items,
+	}
+	s.catalogCache.Set("sitemap:catalog", result)
+	return result, nil
+}
+
 func (s *Service) Reader(ctx context.Context, slug string) (model.ChapterReader, error) {
 	slug = strings.Trim(slug, "/ ")
 	if slug == "" {
@@ -1286,6 +1334,14 @@ func (s *Service) parseURLSet(ctx context.Context, path string, sourceType strin
 		})
 	}
 	return items, nil
+}
+
+func isCatalogSitemap(raw string) bool {
+	lower := strings.ToLower(raw)
+	return strings.Contains(lower, "komik-sitemap") ||
+		strings.Contains(lower, "series-sitemap") ||
+		strings.Contains(lower, "/komik/") ||
+		strings.Contains(lower, "/series/")
 }
 
 func firstNonEmpty(values ...string) string {

@@ -60,6 +60,7 @@ func NewServer(cfg config.Config) *fiber.App {
 	api.Get("/video-source", handler.VideoSource)
 	api.Get("/home", handler.Home)
 	api.Get("/navigation", handler.Navigation)
+	api.Get("/sitemap", handler.Sitemap)
 	api.Get("/search", handler.Search)
 	api.Get("/genres", handler.Genres)
 	api.Get("/comics/az", handler.AZCatalog)

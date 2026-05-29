@@ -7,6 +7,7 @@ export const metadata: Metadata = {
   title: 'Login',
   description: 'Masuk ke akun Naraya untuk menyimpan library, bookmark, dan komentar.',
   alternates: { canonical: '/login' },
+  robots: { index: false, follow: false },
 };
 
 export default function LoginPage() {
