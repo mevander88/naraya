@@ -17,6 +17,14 @@ Naraya API adalah backend Go Fiber untuk katalog komik, katalog anime, reader ch
 
 ## Menjalankan API
 
+Install dependency:
+
+```bash
+go mod download
+```
+
+Jalankan migrasi dan API:
+
 ```bash
 go run ./cmd/migrate
 go run ./cmd/api
@@ -36,12 +44,38 @@ GET http://127.0.0.1:4000/api/health
 
 ## Environment
 
+Development:
+
 ```env
 ADDR=:4000
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/naraya?sslmode=disable
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://naraya.biz.id,https://www.naraya.biz.id
 HTTP_TIMEOUT_SECONDS=20
 CACHE_TTL_SECONDS=300
+```
+
+Production:
+
+```env
+ADDR=127.0.0.1:4000
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/naraya?sslmode=require
+CORS_ORIGINS=https://naraya.biz.id,https://www.naraya.biz.id
+HTTP_TIMEOUT_SECONDS=20
+CACHE_TTL_SECONDS=300
+```
+
+## PostgreSQL Lokal
+
+Jalankan database lokal dengan Docker:
+
+```bash
+docker compose up -d postgres
+```
+
+Default database lokal:
+
+```text
+postgres://postgres:postgres@localhost:5432/naraya?sslmode=disable
 ```
 
 ## Struktur Utama
@@ -114,6 +148,12 @@ Migrasi:
 go run ./cmd/migrate
 ```
 
+Schema dump tersedia di:
+
+```text
+database/schema.sql
+```
+
 ## Media Proxy
 
 Naraya API menyediakan proxy untuk gambar dan video agar frontend memakai endpoint Naraya secara konsisten:
@@ -130,3 +170,72 @@ Video proxy mendukung range request agar player dapat seek dan streaming secara 
 - Set `DATABASE_URL` ke database production.
 - Atur `HTTP_TIMEOUT_SECONDS` dan `CACHE_TTL_SECONDS` sesuai kapasitas server.
 - Jangan expose detail sumber data internal pada response, log publik, atau dokumentasi publik.
+
+## Build Production
+
+Linux:
+
+```bash
+go mod download
+go build -o bin/naraya-api ./cmd/api
+go build -o bin/naraya-migrate ./cmd/migrate
+```
+
+Windows:
+
+```bash
+go mod download
+go build -o bin/naraya-api.exe ./cmd/api
+go build -o bin/naraya-migrate.exe ./cmd/migrate
+```
+
+Jalankan migrasi production:
+
+```bash
+DATABASE_URL="postgres://USER:PASSWORD@HOST:5432/naraya?sslmode=require" ./bin/naraya-migrate
+```
+
+Jalankan API:
+
+```bash
+ADDR=127.0.0.1:4000 DATABASE_URL="postgres://USER:PASSWORD@HOST:5432/naraya?sslmode=require" CORS_ORIGINS="https://naraya.biz.id,https://www.naraya.biz.id" ./bin/naraya-api
+```
+
+## Deploy Backend
+
+Urutan deploy:
+
+1. Pull kode terbaru.
+2. Set environment production.
+3. Jalankan migrasi database.
+4. Build binary API.
+5. Restart service backend.
+6. Cek `/api/health`.
+
+Contoh systemd:
+
+```ini
+[Unit]
+Description=Naraya API
+After=network.target
+
+[Service]
+WorkingDirectory=/var/www/naraya/naraya-api
+ExecStart=/var/www/naraya/naraya-api/bin/naraya-api
+Restart=always
+RestartSec=5
+Environment=ADDR=127.0.0.1:4000
+Environment=DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/naraya?sslmode=require
+Environment=CORS_ORIGINS=https://naraya.biz.id,https://www.naraya.biz.id
+Environment=HTTP_TIMEOUT_SECONDS=20
+Environment=CACHE_TTL_SECONDS=300
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Health check:
+
+```text
+GET https://naraya.biz.id/api/health
+```

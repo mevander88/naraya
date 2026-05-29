@@ -16,8 +16,15 @@ Frontend Naraya dibangun dengan Next.js App Router, Tailwind CSS, dan TypeScript
 
 ## Menjalankan Frontend
 
+Install dependency:
+
 ```bash
 npm install
+```
+
+Development:
+
+```bash
 npm run dev
 ```
 
@@ -29,14 +36,18 @@ http://127.0.0.1:3000
 
 ## Environment
 
+Development:
+
 ```env
 NARAYA_API_URL=http://127.0.0.1:4000/api
+NEXT_PUBLIC_NARAYA_API_URL=http://127.0.0.1:4000/api
 ```
 
 Production:
 
 ```env
 NARAYA_API_URL=https://naraya.biz.id/api
+NEXT_PUBLIC_NARAYA_API_URL=https://naraya.biz.id/api
 ```
 
 Jika `NARAYA_API_URL` tidak diset, frontend memakai fallback:
@@ -51,6 +62,57 @@ npm run dev
 npm run build
 npm run start
 npm run lint
+```
+
+## Build Production
+
+```bash
+npm ci
+npm run build
+npm run start -- --hostname 127.0.0.1 --port 3000
+```
+
+Gunakan `npm run start` untuk audit production dan Lighthouse. `npm run dev` hanya untuk development karena membawa HMR, WebSocket, runtime development, dan cache behavior khusus dev.
+
+## Deploy Frontend
+
+Environment wajib:
+
+```env
+NODE_ENV=production
+NARAYA_API_URL=https://naraya.biz.id/api
+NEXT_PUBLIC_NARAYA_API_URL=https://naraya.biz.id/api
+```
+
+Deploy manual:
+
+```bash
+git pull origin main
+npm ci
+npm run build
+npm run start -- --hostname 127.0.0.1 --port 3000
+```
+
+Contoh PM2:
+
+```bash
+NARAYA_API_URL=https://naraya.biz.id/api NEXT_PUBLIC_NARAYA_API_URL=https://naraya.biz.id/api pm2 start npm --name naraya-web -- run start -- --hostname 127.0.0.1 --port 3000
+pm2 save
+```
+
+Reverse proxy harus mengarah ke frontend:
+
+```text
+https://naraya.biz.id -> http://127.0.0.1:3000
+```
+
+Route SEO yang perlu dicek setelah deploy:
+
+```text
+https://naraya.biz.id
+https://naraya.biz.id/robots.txt
+https://naraya.biz.id/sitemap.xml
+https://naraya.biz.id/opengraph-image
 ```
 
 ## Struktur Utama
