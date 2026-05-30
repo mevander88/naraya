@@ -171,6 +171,12 @@ func normalizeLibraryItems(items []model.LibraryItem) {
 	}
 }
 
+func normalizeLoveItems(items []model.LoveItem) {
+	for i := range items {
+		items[i].CoverURL = normalizeLibraryMediaURL(items[i].CoverURL)
+	}
+}
+
 func normalizeLibraryMediaURL(value string) string {
 	raw := strings.TrimSpace(value)
 	if raw == "" {
@@ -264,6 +270,7 @@ func (h *InternalHandler) ListMyLoves(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
+	normalizeLoveItems(items)
 	return c.JSON(fiber.Map{"items": items})
 }
 
@@ -280,6 +287,7 @@ func (h *InternalHandler) CreateLove(c *fiber.Ctx) error {
 	if strings.TrimSpace(req.TargetSlug) == "" || strings.TrimSpace(req.TargetTitle) == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "targetSlug and targetTitle are required")
 	}
+	req.CoverURL = normalizeLibraryMediaURL(req.CoverURL)
 	status, err := h.store.CreateLove(c.UserContext(), req)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())

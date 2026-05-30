@@ -29,7 +29,7 @@ export function LoveHistorySection({ loves, total }: { loves: LoveItem[]; total:
       <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2">
         {visibleLoves.map((love) => (
           <Link key={love.id} href={loveTargetHref(love)} className="flex min-w-0 max-w-full gap-3 overflow-hidden rounded-2xl bg-background/35 p-3 transition hover:bg-rose-500/10">
-            <img src={love.coverUrl || '/logo.svg'} alt={love.targetTitle} width={56} height={84} loading="lazy" decoding="async" className="aspect-[2/3] h-20 w-14 shrink-0 rounded-xl object-cover" />
+            <img src={love.coverUrl || '/logo.svg'} alt={love.targetTitle} width={56} height={84} loading="lazy" decoding="async" onError={(event) => { event.currentTarget.src = '/logo.svg'; }} className="aspect-[2/3] h-20 w-14 shrink-0 rounded-xl object-cover" />
             <div className="min-w-0 flex-1">
               <p className="line-clamp-2 break-words text-sm font-bold text-on-surface">{love.targetTitle}</p>
               <p className="mt-1 text-xs font-semibold text-rose-200">{love.contentKind === 'series' ? 'Anime' : 'Komik'}</p>
