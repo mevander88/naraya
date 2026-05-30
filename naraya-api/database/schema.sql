@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS naraya_library_items (
     last_chapter_title TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'reading',
     progress_percent INTEGER NOT NULL DEFAULT 0,
-    is_bookmarked BOOLEAN NOT NULL DEFAULT true,
+    is_bookmarked BOOLEAN NOT NULL DEFAULT false,
     added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_read_at TIMESTAMPTZ,

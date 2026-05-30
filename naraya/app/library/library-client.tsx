@@ -10,7 +10,19 @@ type LibraryClientProps = {
   suggestions: ComicCardData[];
 };
 
-const filters = ['All', 'Anime', 'Komik'];
+type LibrarySection = 'favorites' | 'history';
+type StatusFilter = 'all' | 'reading' | 'completed';
+
+const librarySections: Array<{ id: LibrarySection; label: string }> = [
+  { id: 'favorites', label: 'Favorit' },
+  { id: 'history', label: 'Riwayat' },
+];
+const typeFilters = ['All', 'Anime', 'Komik'];
+const statusFilters: Array<{ id: StatusFilter; label: string }> = [
+  { id: 'all', label: 'Semua status' },
+  { id: 'reading', label: 'Berjalan' },
+  { id: 'completed', label: 'Selesai' },
+];
 
 function itemKind(item: LibraryItem) {
   return item.contentKind === 'series' ? 'Anime' : 'Komik';
@@ -23,14 +35,32 @@ function itemHref(item: LibraryItem) {
   return item.lastChapterSlug ? `/baca/${item.lastChapterSlug}` : item.latestChapterSlug ? `/baca/${item.latestChapterSlug}` : `/komik/${item.comicSlug}`;
 }
 
+function isHistoryItem(item: LibraryItem) {
+  return item.status !== 'planned' || item.progressPercent > 0;
+}
+
+function itemProgressLabel(item: LibraryItem) {
+  if (item.status === 'completed') return 'Selesai';
+  if (item.progressPercent > 0) return `Progress ${item.progressPercent}%`;
+  return item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca';
+}
+
 export function LibraryClient({ library, suggestions }: LibraryClientProps) {
+  const [activeSection, setActiveSection] = useState<LibrarySection>('favorites');
   const [activeType, setActiveType] = useState('All');
+  const [activeStatus, setActiveStatus] = useState<StatusFilter>('all');
   const [coverOverrides, setCoverOverrides] = useState<Record<string, string>>({});
   const coverRefreshAttempts = useRef(new Set<string>());
+  const favoriteItems = useMemo(() => library.filter((item) => item.isBookmarked), [library]);
+  const historyItems = useMemo(() => library.filter(isHistoryItem), [library]);
+  const currentItems = activeSection === 'favorites' ? favoriteItems : historyItems;
   const visibleItems = useMemo(() => {
-    if (activeType === 'All') return library;
-    return library.filter((item) => itemKind(item) === activeType);
-  }, [activeType, library]);
+    return currentItems.filter((item) => {
+      const matchesType = activeType === 'All' || itemKind(item) === activeType;
+      const matchesStatus = activeSection !== 'history' || activeStatus === 'all' || item.status === activeStatus;
+      return matchesType && matchesStatus;
+    });
+  }, [activeSection, activeStatus, activeType, currentItems]);
   const refreshCover = useCallback(async (item: LibraryItem) => {
     if (coverRefreshAttempts.current.has(item.id)) return;
     coverRefreshAttempts.current.add(item.id);
@@ -74,24 +104,63 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Rak Bacaan</p>
       <h2 className="mt-2 break-words font-display text-4xl font-bold">Rak bacaanmu</h2>
       <p className="mt-3 max-w-2xl text-on-surface-variant">
-        Bookmark, progress baca, dan status rak bacaan disimpan aman di akun Naraya.
+        Pisahkan item yang kamu simpan sebagai favorit dari aktivitas baca dan nonton terakhir.
       </p>
 
-      <div className="mt-7 flex flex-wrap gap-2">
-        {filters.map((filter) => (
-          <button
-            key={filter}
-            type="button"
-            onClick={() => setActiveType(filter)}
-            className={`rounded-full px-4 py-2 text-sm font-bold transition active:scale-95 ${
-              activeType === filter
-                ? 'bg-primary text-on-primary shadow-glow'
-                : 'bg-surface-container-high text-on-surface-variant hover:bg-primary/12 hover:text-primary'
-            }`}
-          >
-            {filter === 'All' ? 'Semua' : filter}
-          </button>
-        ))}
+      <div className="mt-7 grid gap-3">
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {librarySections.map((section) => {
+            const total = section.id === 'favorites' ? favoriteItems.length : historyItems.length;
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => setActiveSection(section.id)}
+                className={`rounded-full px-4 py-2 text-sm font-bold transition active:scale-95 ${
+                  activeSection === section.id
+                    ? 'bg-primary text-on-primary shadow-glow'
+                    : 'bg-surface-container-high text-on-surface-variant hover:bg-primary/12 hover:text-primary'
+                }`}
+              >
+                {section.label} <span className="ml-1 opacity-80">{total}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          {typeFilters.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => setActiveType(filter)}
+              className={`rounded-full px-4 py-2 text-sm font-bold transition active:scale-95 ${
+                activeType === filter
+                  ? 'bg-primary/18 text-primary ring-1 ring-primary/40'
+                  : 'bg-surface-container-high text-on-surface-variant hover:bg-primary/12 hover:text-primary'
+              }`}
+            >
+              {filter === 'All' ? 'Semua tipe' : filter}
+            </button>
+          ))}
+        </div>
+        {activeSection === 'history' ? (
+          <div className="flex min-w-0 flex-wrap gap-2">
+            {statusFilters.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setActiveStatus(filter.id)}
+                className={`rounded-full px-4 py-2 text-sm font-bold transition active:scale-95 ${
+                  activeStatus === filter.id
+                    ? 'bg-primary/18 text-primary ring-1 ring-primary/40'
+                    : 'bg-surface-container-high text-on-surface-variant hover:bg-primary/12 hover:text-primary'
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-9 grid gap-4 md:gap-5">
@@ -116,11 +185,18 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
               className="h-28 w-20 shrink-0 rounded-xl object-cover"
             />
             <div className="min-w-0 flex-1">
-              <div className="mb-2 inline-flex rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
-                {itemKind(item)}
+              <div className="mb-2 flex min-w-0 flex-wrap gap-2">
+                <span className="inline-flex rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
+                  {itemKind(item)}
+                </span>
+                {activeSection === 'history' ? (
+                  <span className="inline-flex rounded-full bg-white/8 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-on-surface-variant">
+                    {item.status === 'completed' ? 'Selesai' : 'Berjalan'}
+                  </span>
+                ) : null}
               </div>
               <h3 className="truncate text-xl font-semibold">{item.comicTitle}</h3>
-              <p className="mt-1 break-words text-sm text-on-surface-variant">{item.lastChapterTitle || item.latestChapterSlug || (item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca')} - progress {item.progressPercent}%</p>
+              <p className="mt-1 break-words text-sm text-on-surface-variant">{item.lastChapterTitle || item.latestChapterSlug || (item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca')} - {itemProgressLabel(item)}</p>
               <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div className="h-full rounded-full bg-primary" style={{ width: `${item.progressPercent}%` }} />
               </div>
@@ -130,7 +206,12 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
             </span>
           </Link>
         ))}
-        {library.length && !visibleItems.length ? (
+        {library.length && !currentItems.length ? (
+          <div className="glass-panel rounded-2xl p-6 text-on-surface-variant">
+            {activeSection === 'favorites' ? 'Belum ada favorit yang disimpan.' : 'Belum ada riwayat baca atau tonton.'}
+          </div>
+        ) : null}
+        {currentItems.length > 0 && !visibleItems.length ? (
           <div className="glass-panel rounded-2xl p-6 text-on-surface-variant">
             Belum ada item untuk filter ini.
           </div>

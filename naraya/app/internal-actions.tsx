@@ -200,7 +200,7 @@ export function AutoBookmarkVisit({ target }: { target: AutoBookmarkTarget }) {
         lastChapterTitle: target.lastChapterTitle ?? '',
         status: target.status ?? 'reading',
         progressPercent: clampProgress(target.progressPercent),
-        isBookmarked: true,
+        isBookmarked: false,
       }),
     }).catch(() => {
       window.sessionStorage.removeItem(key);

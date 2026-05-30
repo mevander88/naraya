@@ -203,7 +203,7 @@ func (s *Store) UpsertLibrary(ctx context.Context, req model.UpsertLibraryReques
 			last_chapter_title = EXCLUDED.last_chapter_title,
 			status = EXCLUDED.status,
 			progress_percent = EXCLUDED.progress_percent,
-			is_bookmarked = EXCLUDED.is_bookmarked,
+			is_bookmarked = naraya_library_items.is_bookmarked OR EXCLUDED.is_bookmarked,
 			last_read_at = now(),
 			updated_at = now()
 		RETURNING id::text, user_id::text, comic_slug, comic_title, COALESCE(content_kind, 'comic'), cover_url, source_url, latest_chapter_slug,
