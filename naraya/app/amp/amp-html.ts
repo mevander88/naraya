@@ -63,7 +63,8 @@ export function ampResponse(document: AmpDocument) {
 export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[], series: ComicCardData[]) {
   const hero = featured[0] ?? series[0] ?? comics[0];
   const items = [...series.slice(0, 6), ...comics.slice(0, 6)];
-  const heroPath = hero ? `/${hero.kind === 'series' ? 'series' : 'komik'}/${hero.slug}` : '/komik';
+  const heroPath = hero ? `/${hero.kind === 'series' ? 'series' : 'komik'}/${hero.slug}` : '/';
+  const heroURL = mainURLWithAmpBypass(heroPath);
   return ampResponse({
     title: 'Naraya - Baca Komik dan Nonton Anime',
     description: 'Naraya adalah platform baca komik dan nonton anime dengan katalog genre, chapter terbaru, episode terbaru, reader, dan player.',
@@ -83,13 +84,13 @@ export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[]
           <h1>Baca komik dan nonton anime di Naraya</h1>
           <p>Temukan update komik, anime, genre, chapter terbaru, dan episode terbaru di Naraya.</p>
           <div class="hero-actions">
-            <a class="button" href="${SITE_URL}${heroPath}">Buka Pilihan Utama</a>
-            <a class="button-alt" href="${SITE_URL}/explore">Explore</a>
+            <a class="button" href="${escapeAttr(heroURL)}">Buka Pilihan Utama</a>
+            <a class="button-alt" href="${escapeAttr(mainURLWithAmpBypass('/'))}">Buka Naraya</a>
           </div>
         </div>
-        ${hero ? `<a class="hero-media" href="${SITE_URL}${heroPath}"><amp-img src="${escapeAttr(absoluteURL(hero.image))}" width="640" height="900" layout="responsive" alt="${escapeAttr(hero.title)}"></amp-img></a>` : ''}
+        ${hero ? `<a class="hero-media" href="${escapeAttr(heroURL)}"><amp-img src="${escapeAttr(absoluteURL(hero.image))}" width="640" height="900" layout="responsive" alt="${escapeAttr(hero.title)}"></amp-img></a>` : ''}
       </section>
-      <div class="section-head"><h2>Update Terbaru</h2><a class="pill" href="${SITE_URL}/komik">Lihat katalog</a></div>
+      <div class="section-head"><h2>Update Terbaru</h2><a class="pill" href="${escapeAttr(mainURLWithAmpBypass('/'))}">Versi utama</a></div>
       ${renderCardGrid(items)}
     `,
   });
@@ -121,11 +122,10 @@ export function renderComicAmp(detail: ComicDetailData) {
         cover: detail.cover,
         genres: detail.genres,
         canonicalPath: `/komik/${detail.slug}`,
-        primaryLabel: detail.chapters[0]?.number ? `Baca Chapter ${detail.chapters[0].number}` : 'Baca Chapter Terbaru',
-        primaryPath: detail.chapters[0]?.slug ? `/baca/${detail.chapters[0].slug}` : `/komik/${detail.slug}`,
+        primaryLabel: 'Buka Detail Komik',
       })}
-      <div class="section-head"><h2>Chapter Terbaru</h2><a class="pill" href="${SITE_URL}/komik/${escapeAttr(detail.slug)}">Versi utama</a></div>
-      ${renderChapterList(detail.chapters.slice(0, 20))}
+      <div class="section-head"><h2>Chapter Terbaru</h2><a class="pill" href="${escapeAttr(mainURLWithAmpBypass(`/komik/${detail.slug}`))}">Versi utama</a></div>
+      ${renderChapterList(detail.chapters.slice(0, 20), `/komik/${detail.slug}`)}
     `,
   });
 }
@@ -157,11 +157,10 @@ export function renderSeriesAmp(detail: SeriesDetailData) {
         cover: detail.cover,
         genres: detail.genres,
         canonicalPath: `/series/${detail.slug}`,
-        primaryLabel: 'Nonton Episode Terbaru',
-        primaryPath: detail.episodes[0]?.slug ? `/nonton/${detail.episodes[0].slug}` : `/series/${detail.slug}`,
+        primaryLabel: 'Buka Detail Anime',
       })}
-      <div class="section-head"><h2>Episode Terbaru</h2><a class="pill" href="${SITE_URL}/series/${escapeAttr(detail.slug)}">Versi utama</a></div>
-      ${renderEpisodeList(detail.episodes.slice(0, 20))}
+      <div class="section-head"><h2>Episode Terbaru</h2><a class="pill" href="${escapeAttr(mainURLWithAmpBypass(`/series/${detail.slug}`))}">Versi utama</a></div>
+      ${renderEpisodeList(detail.episodes.slice(0, 20), `/series/${detail.slug}`)}
     `,
   });
 }
@@ -174,6 +173,7 @@ export function absoluteURL(value?: string) {
 
 function renderAmpDocument(document: AmpDocument) {
   const canonical = `${SITE_URL}${document.canonicalPath}`;
+  const mainURL = mainURLWithAmpBypass(document.canonicalPath);
   const ampURL = `${SITE_URL}/amp${document.canonicalPath === '/' ? '' : document.canonicalPath}`;
   const image = absoluteURL(document.image);
   return `<!doctype html>
@@ -197,11 +197,11 @@ function renderAmpDocument(document: AmpDocument) {
   <body>
     <main class="wrap">
       <nav class="nav">
-        <a class="brand" href="${SITE_URL}/">
+        <a class="brand" href="${escapeAttr(mainURLWithAmpBypass('/'))}">
           <span class="brand-mark"><amp-img src="${SITE_URL}/logo.svg" width="32" height="18" layout="fixed" alt="Naraya"></amp-img></span>
           <span>Naraya</span>
         </a>
-        <a class="pill" href="${escapeAttr(canonical)}">Buka versi utama</a>
+        <a class="pill" href="${escapeAttr(mainURL)}">Buka versi utama</a>
       </nav>
       ${document.body}
       <footer class="footer">Naraya</footer>
@@ -210,7 +210,8 @@ function renderAmpDocument(document: AmpDocument) {
 </html>`;
 }
 
-function renderDetailHeader(props: { title: string; eyebrow: string; description: string; cover: string; genres: string[]; canonicalPath: string; primaryLabel: string; primaryPath: string }) {
+function renderDetailHeader(props: { title: string; eyebrow: string; description: string; cover: string; genres: string[]; canonicalPath: string; primaryLabel: string }) {
+  const mainURL = mainURLWithAmpBypass(props.canonicalPath);
   return `
     <section class="detail">
       <div class="cover">
@@ -221,13 +222,19 @@ function renderDetailHeader(props: { title: string; eyebrow: string; description
         <h1>${escapeHTML(props.title)}</h1>
         <p>${escapeHTML(trimText(props.description, 520))}</p>
         <div class="hero-actions">
-          <a class="button" href="${SITE_URL}${escapeAttr(props.primaryPath)}">${escapeHTML(props.primaryLabel)}</a>
-          <a class="button-alt" href="${SITE_URL}${escapeAttr(props.canonicalPath)}">Detail lengkap</a>
+          <a class="button" href="${escapeAttr(mainURL)}">${escapeHTML(props.primaryLabel)}</a>
+          <a class="button-alt" href="${escapeAttr(mainURL)}">Detail lengkap</a>
         </div>
         <div class="chips">${props.genres.map((genre) => `<span class="chip">${escapeHTML(genre)}</span>`).join('')}</div>
       </div>
     </section>
   `;
+}
+
+function mainURLWithAmpBypass(pathname: string) {
+  const url = new URL(pathname, SITE_URL);
+  url.searchParams.set('naraya_amp', 'main');
+  return url.toString();
 }
 
 function renderCardGrid(items: ComicCardData[]) {
@@ -237,8 +244,9 @@ function renderCardGrid(items: ComicCardData[]) {
 
 function renderCard(item: ComicCardData) {
   const kindPath = item.kind === 'series' ? 'series' : 'komik';
+  const targetURL = mainURLWithAmpBypass(`/${kindPath}/${item.slug}`);
   return `
-    <a class="card" href="${SITE_URL}/${kindPath}/${escapeAttr(item.slug)}">
+    <a class="card" href="${escapeAttr(targetURL)}">
       <amp-img src="${escapeAttr(absoluteURL(item.image))}" width="320" height="480" layout="responsive" alt="${escapeAttr(item.title)}"></amp-img>
       <div class="card-body">
         <p class="meta">${escapeHTML(item.kind === 'series' ? 'Anime' : 'Komik')}</p>
@@ -249,20 +257,22 @@ function renderCard(item: ComicCardData) {
   `;
 }
 
-function renderChapterList(chapters: ChapterData[]) {
+function renderChapterList(chapters: ChapterData[], detailPath: string) {
   if (!chapters.length) return '<p>Belum ada chapter yang tersedia.</p>';
+  const detailURL = mainURLWithAmpBypass(detailPath);
   return `<ul class="list">${chapters.map((chapter) => `
-    <li><a class="row" href="${SITE_URL}/baca/${escapeAttr(chapter.slug)}">
+    <li><a class="row" href="${escapeAttr(detailURL)}">
       <strong>${escapeHTML(chapter.title || `Chapter ${chapter.number}`)}</strong>
       <span>${escapeHTML(chapter.date || chapter.number || 'Chapter')}</span>
     </a></li>
   `).join('')}</ul>`;
 }
 
-function renderEpisodeList(episodes: SeriesEpisodeData[]) {
+function renderEpisodeList(episodes: SeriesEpisodeData[], detailPath: string) {
   if (!episodes.length) return '<p>Belum ada episode yang tersedia.</p>';
+  const detailURL = mainURLWithAmpBypass(detailPath);
   return `<ul class="list">${episodes.map((episode) => `
-    <li><a class="row" href="${SITE_URL}/nonton/${escapeAttr(episode.slug)}">
+    <li><a class="row" href="${escapeAttr(detailURL)}">
       <strong>${escapeHTML(episode.title || `Episode ${episode.number}`)}</strong>
       <span>${escapeHTML(episode.date || episode.number || 'Episode')}</span>
     </a></li>

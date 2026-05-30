@@ -2,10 +2,18 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const COOKIE_NAME = 'naraya_web';
 const TOKEN_TTL_SECONDS = 2 * 60 * 60;
+const AMP_MAIN_BYPASS = 'naraya_amp';
 
 export async function proxy(request: NextRequest) {
-  const response = NextResponse.next();
   const ampURL = ampURLForPath(request.nextUrl.pathname);
+  const shouldVaryByUA = Boolean(ampURL);
+  const response = shouldRedirectToAMP(request, ampURL)
+    ? NextResponse.redirect(redirectURL(request, ampURL), 307)
+    : NextResponse.next();
+
+  if (shouldVaryByUA) {
+    response.headers.append('Vary', 'User-Agent');
+  }
   if (ampURL) {
     response.headers.append('Link', `<${ampURL}>; rel="amphtml"`);
   }
@@ -35,6 +43,33 @@ function ampURLForPath(pathname: string) {
   const match = pathname.match(/^\/(komik|series)\/([^/]+)\/?$/);
   if (!match) return '';
   return `https://naraya.biz.id/amp/${match[1]}/${match[2]}`;
+}
+
+function shouldRedirectToAMP(request: NextRequest, ampURL: string) {
+  if (!ampURL) return false;
+  if (request.method !== 'GET' && request.method !== 'HEAD') return false;
+  if (request.nextUrl.searchParams.get(AMP_MAIN_BYPASS) === 'main') return false;
+  if (request.headers.get('next-router-prefetch') || request.headers.get('rsc')) return false;
+  const fetchMode = request.headers.get('sec-fetch-mode')?.toLowerCase() ?? '';
+  const fetchDest = request.headers.get('sec-fetch-dest')?.toLowerCase() ?? '';
+  if (fetchMode && fetchMode !== 'navigate') return false;
+  if (fetchDest && fetchDest !== 'document') return false;
+  return isMobileUserAgent(request.headers.get('user-agent') ?? '');
+}
+
+function redirectURL(request: NextRequest, ampURL: string) {
+  const target = new URL(ampURL);
+  request.nextUrl.searchParams.forEach((value, key) => {
+    if (key !== AMP_MAIN_BYPASS) {
+      target.searchParams.append(key, value);
+    }
+  });
+  return target;
+}
+
+function isMobileUserAgent(userAgent: string) {
+  const value = userAgent.toLowerCase();
+  return /android|iphone|ipod|windows phone|blackberry|bb10|opera mini|mobile/.test(value);
 }
 
 async function createWebToken(userAgent: string, secret: string) {
