@@ -1,196 +1,112 @@
--- Naraya database schema dump
--- Target: PostgreSQL
+--
+-- PostgreSQL database dump
+--
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+\restrict UxOwudhuSPWJjFc7NxIDxdexgnXa4tEE3qB0Yk2Ivfg3LleqjCDW2UB0ysREQtO
 
-CREATE TABLE IF NOT EXISTS naraya_users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    username TEXT NOT NULL UNIQUE,
-    display_name TEXT NOT NULL,
-    avatar_url TEXT NOT NULL DEFAULT '',
-    bio TEXT NOT NULL DEFAULT '',
-    role TEXT NOT NULL DEFAULT 'reader',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    email TEXT NOT NULL DEFAULT '',
-    password_hash TEXT NOT NULL DEFAULT crypt('naraya-demo', gen_salt('bf')),
-    CONSTRAINT naraya_users_username_len CHECK (char_length(username) BETWEEN 3 AND 40),
-    CONSTRAINT naraya_users_display_name_len CHECK (char_length(display_name) BETWEEN 1 AND 80),
-    CONSTRAINT naraya_users_email_format CHECK (email = '' OR email ~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$')
-);
+-- Dumped from database version 18.1 (Debian 18.1-1.pgdg12+2)
+-- Dumped by pg_dump version 18.1 (Debian 18.1-1.pgdg12+2)
 
-CREATE UNIQUE INDEX IF NOT EXISTS naraya_users_email_unique_idx
-ON naraya_users (lower(email))
-WHERE email <> '';
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
 
-CREATE UNIQUE INDEX IF NOT EXISTS naraya_users_username_lower_unique_idx
-ON naraya_users (lower(username));
+--
+-- Name: pgcrypto; Type: EXTENSION; Schema: -; Owner: -
+--
 
-CREATE TABLE IF NOT EXISTS naraya_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES naraya_users(id) ON DELETE CASCADE,
-    token_hash TEXT NOT NULL UNIQUE,
-    user_agent TEXT NOT NULL DEFAULT '',
-    ip_address TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    expires_at TIMESTAMPTZ NOT NULL,
-    revoked_at TIMESTAMPTZ
-);
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
 
-CREATE INDEX IF NOT EXISTS naraya_sessions_user_idx
-ON naraya_sessions (user_id, created_at DESC);
 
-CREATE INDEX IF NOT EXISTS naraya_sessions_active_idx
-ON naraya_sessions (token_hash, expires_at)
-WHERE revoked_at IS NULL;
+--
+-- Name: naraya_favorite_counts_decrement(); Type: FUNCTION; Schema: public; Owner: -
+--
 
-CREATE INDEX IF NOT EXISTS naraya_sessions_active_lookup_idx
-ON naraya_sessions (token_hash)
-INCLUDE (user_id, expires_at)
-WHERE revoked_at IS NULL;
-
-CREATE TABLE IF NOT EXISTS naraya_user_settings (
-    user_id UUID PRIMARY KEY REFERENCES naraya_users(id) ON DELETE CASCADE,
-    auto_bookmark BOOLEAN NOT NULL DEFAULT true,
-    mature_filter BOOLEAN NOT NULL DEFAULT false,
-    high_quality_images BOOLEAN NOT NULL DEFAULT true,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-CREATE TABLE IF NOT EXISTS naraya_library_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES naraya_users(id) ON DELETE CASCADE,
-    comic_slug TEXT NOT NULL,
-    comic_title TEXT NOT NULL,
-    cover_url TEXT NOT NULL DEFAULT '',
-    source_url TEXT NOT NULL DEFAULT '',
-    latest_chapter_slug TEXT NOT NULL DEFAULT '',
-    last_chapter_slug TEXT NOT NULL DEFAULT '',
-    last_chapter_title TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'reading',
-    progress_percent INTEGER NOT NULL DEFAULT 0,
-    is_bookmarked BOOLEAN NOT NULL DEFAULT false,
-    added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    last_read_at TIMESTAMPTZ,
-    content_kind TEXT NOT NULL DEFAULT 'comic',
-    CONSTRAINT naraya_library_progress_range CHECK (progress_percent BETWEEN 0 AND 100),
-    CONSTRAINT naraya_library_status_allowed CHECK (status IN ('reading', 'planned', 'completed', 'paused', 'dropped')),
-    CONSTRAINT naraya_library_content_kind_allowed CHECK (content_kind IN ('comic', 'series')),
-    CONSTRAINT naraya_library_unique_user_comic UNIQUE (user_id, comic_slug)
-);
-
-CREATE INDEX IF NOT EXISTS naraya_library_user_updated_idx
-ON naraya_library_items (user_id, updated_at DESC);
-
-CREATE INDEX IF NOT EXISTS naraya_library_bookmark_idx
-ON naraya_library_items (user_id, is_bookmarked, updated_at DESC);
-
-CREATE INDEX IF NOT EXISTS naraya_library_user_kind_updated_idx
-ON naraya_library_items (user_id, content_kind, updated_at DESC);
-
-CREATE INDEX IF NOT EXISTS naraya_library_user_status_idx
-ON naraya_library_items (user_id, status);
-
-CREATE TABLE IF NOT EXISTS naraya_comments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES naraya_users(id) ON DELETE CASCADE,
-    comic_slug TEXT NOT NULL DEFAULT '',
-    chapter_slug TEXT NOT NULL DEFAULT '',
-    parent_id UUID REFERENCES naraya_comments(id) ON DELETE CASCADE,
-    body TEXT NOT NULL,
-    is_edited BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at TIMESTAMPTZ,
-    CONSTRAINT naraya_comments_target_required CHECK (comic_slug <> '' OR chapter_slug <> ''),
-    CONSTRAINT naraya_comments_body_len CHECK (char_length(body) BETWEEN 1 AND 2000)
-);
-
-CREATE INDEX IF NOT EXISTS naraya_comments_comic_idx
-ON naraya_comments (comic_slug, created_at DESC)
-WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_chapter_idx
-ON naraya_comments (chapter_slug, created_at DESC)
-WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_comic_chapter_idx
-ON naraya_comments (comic_slug, chapter_slug, created_at DESC)
-WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_target_root_cursor_idx
-ON naraya_comments (comic_slug, chapter_slug, created_at DESC, id DESC)
-WHERE deleted_at IS NULL AND parent_id IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_chapter_root_cursor_idx
-ON naraya_comments (chapter_slug, created_at DESC, id DESC)
-WHERE deleted_at IS NULL AND parent_id IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_parent_idx
-ON naraya_comments (parent_id, created_at ASC)
-WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_parent_latest_idx
-ON naraya_comments (parent_id, created_at DESC, id DESC)
-WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_user_created_idx
-ON naraya_comments (user_id, created_at DESC)
-WHERE deleted_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS naraya_comments_user_cursor_idx
-ON naraya_comments (user_id, created_at DESC, id DESC)
-WHERE deleted_at IS NULL;
-
-CREATE TABLE IF NOT EXISTS naraya_love_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES naraya_users(id) ON DELETE CASCADE,
-    target_slug TEXT NOT NULL,
-    target_title TEXT NOT NULL,
-    content_kind TEXT NOT NULL DEFAULT 'comic',
-    cover_url TEXT NOT NULL DEFAULT '',
-    target_url TEXT NOT NULL DEFAULT '',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT naraya_love_target_required CHECK (target_slug <> ''),
-    CONSTRAINT naraya_love_content_kind_allowed CHECK (content_kind IN ('comic', 'series')),
-    CONSTRAINT naraya_love_unique_user_target UNIQUE (user_id, target_slug)
-);
-
-CREATE INDEX IF NOT EXISTS naraya_love_target_idx
-ON naraya_love_items (target_slug, created_at DESC);
-
-CREATE INDEX IF NOT EXISTS naraya_love_target_user_idx
-ON naraya_love_items (target_slug, user_id);
-
-CREATE INDEX IF NOT EXISTS naraya_love_user_created_idx
-ON naraya_love_items (user_id, created_at DESC);
-
-CREATE TABLE IF NOT EXISTS naraya_love_counts (
-    target_slug TEXT PRIMARY KEY,
-    love_count BIGINT NOT NULL DEFAULT 0,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT naraya_love_counts_non_negative CHECK (love_count >= 0)
-);
-
-CREATE OR REPLACE FUNCTION naraya_love_counts_increment()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+CREATE FUNCTION public.naraya_favorite_counts_decrement() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
 BEGIN
-    INSERT INTO naraya_love_counts (target_slug, love_count, updated_at)
-    VALUES (NEW.target_slug, 1, now())
-    ON CONFLICT (target_slug) DO UPDATE SET
-        love_count = naraya_love_counts.love_count + 1,
-        updated_at = now();
+    IF OLD.is_bookmarked = true THEN
+        UPDATE naraya_favorite_counts
+        SET favorite_count = GREATEST(favorite_count - 1, 0),
+            updated_at = now()
+        WHERE target_slug = OLD.comic_slug;
+
+        DELETE FROM naraya_favorite_counts
+        WHERE target_slug = OLD.comic_slug
+          AND favorite_count = 0;
+    END IF;
+    RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: naraya_favorite_counts_increment(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.naraya_favorite_counts_increment() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF NEW.is_bookmarked = true THEN
+        INSERT INTO naraya_favorite_counts (target_slug, favorite_count, updated_at)
+        VALUES (NEW.comic_slug, 1, now())
+        ON CONFLICT (target_slug) DO UPDATE SET
+            favorite_count = naraya_favorite_counts.favorite_count + 1,
+            updated_at = now();
+    END IF;
     RETURN NEW;
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION naraya_love_counts_decrement()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+
+--
+-- Name: naraya_favorite_counts_update(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.naraya_favorite_counts_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF OLD.is_bookmarked IS DISTINCT FROM NEW.is_bookmarked THEN
+        IF NEW.is_bookmarked = true THEN
+            INSERT INTO naraya_favorite_counts (target_slug, favorite_count, updated_at)
+            VALUES (NEW.comic_slug, 1, now())
+            ON CONFLICT (target_slug) DO UPDATE SET
+                favorite_count = naraya_favorite_counts.favorite_count + 1,
+                updated_at = now();
+        ELSIF OLD.is_bookmarked = true THEN
+            UPDATE naraya_favorite_counts
+            SET favorite_count = GREATEST(favorite_count - 1, 0),
+                updated_at = now()
+            WHERE target_slug = OLD.comic_slug;
+
+            DELETE FROM naraya_favorite_counts
+            WHERE target_slug = OLD.comic_slug
+              AND favorite_count = 0;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: naraya_love_counts_decrement(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.naraya_love_counts_decrement() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
 BEGIN
     UPDATE naraya_love_counts
     SET love_count = GREATEST(love_count - 1, 0),
@@ -205,29 +121,516 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS naraya_love_counts_increment_trigger ON naraya_love_items;
-CREATE TRIGGER naraya_love_counts_increment_trigger
-AFTER INSERT ON naraya_love_items
-FOR EACH ROW
-EXECUTE FUNCTION naraya_love_counts_increment();
 
-DROP TRIGGER IF EXISTS naraya_love_counts_decrement_trigger ON naraya_love_items;
-CREATE TRIGGER naraya_love_counts_decrement_trigger
-AFTER DELETE ON naraya_love_items
-FOR EACH ROW
-EXECUTE FUNCTION naraya_love_counts_decrement();
+--
+-- Name: naraya_love_counts_increment(); Type: FUNCTION; Schema: public; Owner: -
+--
 
-INSERT INTO naraya_users (id, username, display_name, avatar_url, bio, role)
-VALUES (
-    '00000000-0000-0000-0000-000000000001',
-    'nara_reader',
-    'Nara Reader',
-    'https://images.unsplash.com/photo-1502685104226-ee32379fefbe?auto=format&fit=crop&w=200&q=80',
-    'Akun pembaca Naraya.',
-    'reader'
+CREATE FUNCTION public.naraya_love_counts_increment() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    INSERT INTO naraya_love_counts (target_slug, love_count, updated_at)
+    VALUES (NEW.target_slug, 1, now())
+    ON CONFLICT (target_slug) DO UPDATE SET
+        love_count = naraya_love_counts.love_count + 1,
+        updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: naraya_comments; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_comments (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    comic_slug text DEFAULT ''::text NOT NULL,
+    chapter_slug text DEFAULT ''::text NOT NULL,
+    parent_id uuid,
+    body text NOT NULL,
+    is_edited boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    deleted_at timestamp with time zone,
+    CONSTRAINT naraya_comments_body_len CHECK (((char_length(body) >= 1) AND (char_length(body) <= 2000))),
+    CONSTRAINT naraya_comments_target_required CHECK (((comic_slug <> ''::text) OR (chapter_slug <> ''::text)))
 )
-ON CONFLICT (id) DO NOTHING;
+WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02');
 
-INSERT INTO naraya_user_settings (user_id)
-SELECT id FROM naraya_users
-ON CONFLICT (user_id) DO NOTHING;
+
+--
+-- Name: naraya_favorite_counts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_favorite_counts (
+    target_slug text NOT NULL,
+    favorite_count bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT naraya_favorite_counts_non_negative CHECK ((favorite_count >= 0))
+);
+
+
+--
+-- Name: naraya_library_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_library_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    comic_slug text NOT NULL,
+    comic_title text NOT NULL,
+    cover_url text DEFAULT ''::text NOT NULL,
+    source_url text DEFAULT ''::text NOT NULL,
+    latest_chapter_slug text DEFAULT ''::text NOT NULL,
+    last_chapter_slug text DEFAULT ''::text NOT NULL,
+    last_chapter_title text DEFAULT ''::text NOT NULL,
+    status text DEFAULT 'reading'::text NOT NULL,
+    progress_percent integer DEFAULT 0 NOT NULL,
+    is_bookmarked boolean DEFAULT false NOT NULL,
+    added_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_read_at timestamp with time zone,
+    content_kind text DEFAULT 'comic'::text NOT NULL,
+    CONSTRAINT naraya_library_content_kind_allowed CHECK ((content_kind = ANY (ARRAY['comic'::text, 'series'::text]))),
+    CONSTRAINT naraya_library_progress_range CHECK (((progress_percent >= 0) AND (progress_percent <= 100))),
+    CONSTRAINT naraya_library_status_allowed CHECK ((status = ANY (ARRAY['reading'::text, 'planned'::text, 'completed'::text, 'paused'::text, 'dropped'::text])))
+)
+WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02');
+
+
+--
+-- Name: naraya_love_counts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_love_counts (
+    target_slug text NOT NULL,
+    love_count bigint DEFAULT 0 NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT naraya_love_counts_non_negative CHECK ((love_count >= 0))
+);
+
+
+--
+-- Name: naraya_love_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_love_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    target_slug text NOT NULL,
+    target_title text NOT NULL,
+    content_kind text DEFAULT 'comic'::text NOT NULL,
+    cover_url text DEFAULT ''::text NOT NULL,
+    target_url text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT naraya_love_content_kind_allowed CHECK ((content_kind = ANY (ARRAY['comic'::text, 'series'::text]))),
+    CONSTRAINT naraya_love_target_required CHECK ((target_slug <> ''::text))
+)
+WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02');
+
+
+--
+-- Name: naraya_sessions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_sessions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    token_hash text NOT NULL,
+    user_agent text DEFAULT ''::text NOT NULL,
+    ip_address text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone
+)
+WITH (autovacuum_vacuum_scale_factor='0.02', autovacuum_analyze_scale_factor='0.01');
+
+
+--
+-- Name: naraya_user_settings; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_user_settings (
+    user_id uuid NOT NULL,
+    auto_bookmark boolean DEFAULT true NOT NULL,
+    mature_filter boolean DEFAULT false NOT NULL,
+    high_quality_images boolean DEFAULT true NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+)
+WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02');
+
+
+--
+-- Name: naraya_users; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_users (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    username text NOT NULL,
+    display_name text NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL,
+    bio text DEFAULT ''::text NOT NULL,
+    role text DEFAULT 'reader'::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    email text DEFAULT ''::text NOT NULL,
+    password_hash text DEFAULT public.crypt('naraya-demo'::text, public.gen_salt('bf'::text)) NOT NULL,
+    CONSTRAINT naraya_users_display_name_len CHECK (((char_length(display_name) >= 1) AND (char_length(display_name) <= 80))),
+    CONSTRAINT naraya_users_email_format CHECK (((email = ''::text) OR (email ~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$'::text))),
+    CONSTRAINT naraya_users_username_len CHECK (((char_length(username) >= 3) AND (char_length(username) <= 40)))
+);
+
+
+--
+-- Name: naraya_comments naraya_comments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_comments
+    ADD CONSTRAINT naraya_comments_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naraya_favorite_counts naraya_favorite_counts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_favorite_counts
+    ADD CONSTRAINT naraya_favorite_counts_pkey PRIMARY KEY (target_slug);
+
+
+--
+-- Name: naraya_library_items naraya_library_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_library_items
+    ADD CONSTRAINT naraya_library_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naraya_library_items naraya_library_unique_user_comic; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_library_items
+    ADD CONSTRAINT naraya_library_unique_user_comic UNIQUE (user_id, comic_slug);
+
+
+--
+-- Name: naraya_love_counts naraya_love_counts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_love_counts
+    ADD CONSTRAINT naraya_love_counts_pkey PRIMARY KEY (target_slug);
+
+
+--
+-- Name: naraya_love_items naraya_love_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_love_items
+    ADD CONSTRAINT naraya_love_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naraya_love_items naraya_love_unique_user_target; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_love_items
+    ADD CONSTRAINT naraya_love_unique_user_target UNIQUE (user_id, target_slug);
+
+
+--
+-- Name: naraya_sessions naraya_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_sessions
+    ADD CONSTRAINT naraya_sessions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naraya_sessions naraya_sessions_token_hash_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_sessions
+    ADD CONSTRAINT naraya_sessions_token_hash_key UNIQUE (token_hash);
+
+
+--
+-- Name: naraya_user_settings naraya_user_settings_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_user_settings
+    ADD CONSTRAINT naraya_user_settings_pkey PRIMARY KEY (user_id);
+
+
+--
+-- Name: naraya_users naraya_users_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_users
+    ADD CONSTRAINT naraya_users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naraya_users naraya_users_username_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_users
+    ADD CONSTRAINT naraya_users_username_key UNIQUE (username);
+
+
+--
+-- Name: naraya_comments_chapter_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_chapter_idx ON public.naraya_comments USING btree (chapter_slug, created_at DESC) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: naraya_comments_chapter_root_cursor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_chapter_root_cursor_idx ON public.naraya_comments USING btree (chapter_slug, created_at DESC, id DESC) WHERE ((deleted_at IS NULL) AND (parent_id IS NULL));
+
+
+--
+-- Name: naraya_comments_comic_chapter_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_comic_chapter_idx ON public.naraya_comments USING btree (comic_slug, chapter_slug, created_at DESC) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: naraya_comments_comic_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_comic_idx ON public.naraya_comments USING btree (comic_slug, created_at DESC) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: naraya_comments_parent_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_parent_idx ON public.naraya_comments USING btree (parent_id, created_at) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: naraya_comments_parent_latest_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_parent_latest_idx ON public.naraya_comments USING btree (parent_id, created_at DESC, id DESC) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: naraya_comments_target_root_cursor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_target_root_cursor_idx ON public.naraya_comments USING btree (comic_slug, chapter_slug, created_at DESC, id DESC) WHERE ((deleted_at IS NULL) AND (parent_id IS NULL));
+
+
+--
+-- Name: naraya_comments_user_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_user_created_idx ON public.naraya_comments USING btree (user_id, created_at DESC) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: naraya_comments_user_cursor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_comments_user_cursor_idx ON public.naraya_comments USING btree (user_id, created_at DESC, id DESC) WHERE (deleted_at IS NULL);
+
+
+--
+-- Name: naraya_library_bookmark_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_bookmark_idx ON public.naraya_library_items USING btree (user_id, is_bookmarked, updated_at DESC);
+
+
+--
+-- Name: naraya_library_favorite_target_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_favorite_target_user_idx ON public.naraya_library_items USING btree (comic_slug, user_id) WHERE (is_bookmarked = true);
+
+
+--
+-- Name: naraya_library_history_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_history_idx ON public.naraya_library_items USING btree (user_id, status, updated_at DESC);
+
+
+--
+-- Name: naraya_library_user_kind_updated_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_user_kind_updated_idx ON public.naraya_library_items USING btree (user_id, content_kind, updated_at DESC);
+
+
+--
+-- Name: naraya_library_user_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_user_status_idx ON public.naraya_library_items USING btree (user_id, status);
+
+
+--
+-- Name: naraya_library_user_updated_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_user_updated_idx ON public.naraya_library_items USING btree (user_id, updated_at DESC);
+
+
+--
+-- Name: naraya_love_target_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_love_target_idx ON public.naraya_love_items USING btree (target_slug, created_at DESC);
+
+
+--
+-- Name: naraya_love_target_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_love_target_user_idx ON public.naraya_love_items USING btree (target_slug, user_id);
+
+
+--
+-- Name: naraya_love_user_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_love_user_created_idx ON public.naraya_love_items USING btree (user_id, created_at DESC);
+
+
+--
+-- Name: naraya_sessions_active_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_sessions_active_idx ON public.naraya_sessions USING btree (token_hash, expires_at) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: naraya_sessions_active_lookup_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_sessions_active_lookup_idx ON public.naraya_sessions USING btree (token_hash) INCLUDE (user_id, expires_at) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: naraya_sessions_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_sessions_user_idx ON public.naraya_sessions USING btree (user_id, created_at DESC);
+
+
+--
+-- Name: naraya_users_email_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX naraya_users_email_unique_idx ON public.naraya_users USING btree (lower(email)) WHERE (email <> ''::text);
+
+
+--
+-- Name: naraya_users_username_lower_unique_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX naraya_users_username_lower_unique_idx ON public.naraya_users USING btree (lower(username));
+
+
+--
+-- Name: naraya_library_items naraya_favorite_counts_decrement_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER naraya_favorite_counts_decrement_trigger AFTER DELETE ON public.naraya_library_items FOR EACH ROW EXECUTE FUNCTION public.naraya_favorite_counts_decrement();
+
+
+--
+-- Name: naraya_library_items naraya_favorite_counts_increment_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER naraya_favorite_counts_increment_trigger AFTER INSERT ON public.naraya_library_items FOR EACH ROW EXECUTE FUNCTION public.naraya_favorite_counts_increment();
+
+
+--
+-- Name: naraya_library_items naraya_favorite_counts_update_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER naraya_favorite_counts_update_trigger AFTER UPDATE OF is_bookmarked ON public.naraya_library_items FOR EACH ROW EXECUTE FUNCTION public.naraya_favorite_counts_update();
+
+
+--
+-- Name: naraya_love_items naraya_love_counts_decrement_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER naraya_love_counts_decrement_trigger AFTER DELETE ON public.naraya_love_items FOR EACH ROW EXECUTE FUNCTION public.naraya_love_counts_decrement();
+
+
+--
+-- Name: naraya_love_items naraya_love_counts_increment_trigger; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER naraya_love_counts_increment_trigger AFTER INSERT ON public.naraya_love_items FOR EACH ROW EXECUTE FUNCTION public.naraya_love_counts_increment();
+
+
+--
+-- Name: naraya_comments naraya_comments_parent_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_comments
+    ADD CONSTRAINT naraya_comments_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.naraya_comments(id) ON DELETE CASCADE;
+
+
+--
+-- Name: naraya_comments naraya_comments_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_comments
+    ADD CONSTRAINT naraya_comments_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.naraya_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: naraya_library_items naraya_library_items_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_library_items
+    ADD CONSTRAINT naraya_library_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.naraya_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: naraya_love_items naraya_love_items_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_love_items
+    ADD CONSTRAINT naraya_love_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.naraya_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: naraya_sessions naraya_sessions_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_sessions
+    ADD CONSTRAINT naraya_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.naraya_users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: naraya_user_settings naraya_user_settings_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_user_settings
+    ADD CONSTRAINT naraya_user_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.naraya_users(id) ON DELETE CASCADE;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict UxOwudhuSPWJjFc7NxIDxdexgnXa4tEE3qB0Yk2Ivfg3LleqjCDW2UB0ysREQtO
+
