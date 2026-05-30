@@ -39,7 +39,6 @@ export const config = {
 };
 
 function ampURLForPath(pathname: string) {
-  if (pathname === '/') return 'https://naraya.biz.id/amp';
   const match = pathname.match(/^\/(komik|series)\/([^/]+)\/?$/);
   if (!match) return '';
   return `https://naraya.biz.id/amp/${match[1]}/${match[2]}`;
