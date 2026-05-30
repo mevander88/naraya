@@ -3,7 +3,7 @@
 import { Bookmark, Heart, MessageSquare, X } from 'lucide-react';
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
-import type { ComicCardData, LoveStatus } from './data';
+import type { ComicCardData, FavoriteStatus, LoveStatus } from './data';
 import { apiCredentials, apiURL } from './lib/client-api';
 
 function hasSessionHint() {
@@ -12,16 +12,19 @@ function hasSessionHint() {
     .some((row) => row.startsWith('naraya_user='));
 }
 
-export function BookmarkButton({ comic, variant = 'icon' }: { comic: ComicCardData; variant?: 'icon' | 'button' }) {
-  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+export function BookmarkButton({ comic, variant = 'icon', initialStatus }: { comic: ComicCardData; variant?: 'icon' | 'button'; initialStatus?: FavoriteStatus }) {
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>(initialStatus?.favorited ? 'saved' : 'idle');
+  const [count, setCount] = useState(initialStatus?.count ?? 0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const shouldShowCount = typeof initialStatus !== 'undefined';
 
   useEffect(() => {
     setIsLoggedIn(hasSessionHint());
   }, []);
 
   async function save() {
+    if (state === 'saved' || state === 'saving') return;
     if (!isLoggedIn) {
       setShowLoginPrompt(true);
       return;
@@ -47,7 +50,17 @@ export function BookmarkButton({ comic, variant = 'icon' }: { comic: ComicCardDa
           isBookmarked: true,
         }),
       });
-      setState(response.ok ? 'saved' : 'error');
+      if (!response.ok) throw new Error('bookmark failed');
+      const statusResponse = await fetch(apiURL(`/library/${encodeURIComponent(comic.slug)}/status`), {
+        credentials: apiCredentials(),
+      });
+      if (statusResponse.ok) {
+        const payload = (await statusResponse.json()) as FavoriteStatus;
+        setCount(payload.count);
+      } else {
+        setCount((current) => current + 1);
+      }
+      setState('saved');
     } catch {
       setState('error');
     }
@@ -57,14 +70,16 @@ export function BookmarkButton({ comic, variant = 'icon' }: { comic: ComicCardDa
     <>
       <button
         onClick={save}
+        disabled={state === 'saved' || state === 'saving'}
         className={variant === 'button'
-          ? 'interactive-lift inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95'
-          : 'rounded-lg bg-black/70 p-2 text-primary backdrop-blur transition hover:bg-primary hover:text-on-primary'}
+          ? 'interactive-lift inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95 disabled:cursor-default disabled:opacity-85'
+          : 'rounded-lg bg-black/70 p-2 text-primary backdrop-blur transition hover:bg-primary hover:text-on-primary disabled:cursor-default disabled:opacity-85'}
         aria-label={`Simpan ${comic.title}`}
         title={!isLoggedIn ? 'Login dulu untuk memasukkan ke rak bacaan' : state === 'saved' ? 'Tersimpan' : 'Simpan ke rak bacaan'}
       >
         <Bookmark size={17} fill={state === 'saved' ? 'currentColor' : 'none'} />
         {variant === 'button' ? <span>{state === 'saved' ? 'Tersimpan' : state === 'saving' ? 'Menyimpan...' : 'Simpan'}</span> : null}
+        {variant === 'button' && shouldShowCount ? <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-bold">{count}</span> : null}
       </button>
       {showLoginPrompt ? (
         <div className="fixed inset-x-3 bottom-[5.25rem] z-[80] mx-auto max-h-[calc(100dvh-7rem)] max-w-[min(24rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border border-white/10 bg-surface-container-high p-4 shadow-2xl md:bottom-8 md:inset-x-4">

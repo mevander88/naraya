@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BookmarkButton, LoveButton } from '../../internal-actions';
-import { getComicDetail, getComments, getLoveStatus, titleFromSlug } from '../../data';
+import { getComicDetail, getComments, getFavoriteStatus, getLoveStatus, titleFromSlug } from '../../data';
 import type { Metadata } from 'next';
 import { ChapterList } from './chapter-list';
 import { CollapsibleInfo, CollapsibleSynopsis } from '../../series/collapsible-detail';
@@ -42,8 +42,9 @@ export default async function ComicDetailPage({ params }: PageProps) {
   const detail = await getComicDetail(slug);
   if (!detail) notFound();
 
-  const [comments, loveStatus] = await Promise.all([
+  const [comments, favoriteStatus, loveStatus] = await Promise.all([
     getComments({ comicSlug: detail.slug }),
+    getFavoriteStatus(detail.slug),
     getLoveStatus(detail.slug),
   ]);
   const latest = detail.chapters[0];
@@ -95,7 +96,7 @@ export default async function ComicDetailPage({ params }: PageProps) {
                   Baca {latest.number ? `Chapter ${latest.number}` : 'Chapter Terbaru'}
                 </Link>
               ) : null}
-              <BookmarkButton comic={bookmarkComic} variant="button" />
+              <BookmarkButton comic={bookmarkComic} variant="button" initialStatus={favoriteStatus} />
             </div>
             <div className="flex flex-wrap gap-3 md:pt-1">
               <LoveButton

@@ -80,6 +80,7 @@ func NewServer(cfg config.Config) *fiber.App {
 		api.Get("/me", internalHandler.Me)
 		api.Get("/me/stats", internalHandler.UserStats)
 		api.Get("/library", internalHandler.ListLibrary)
+		api.Get("/library/:targetSlug/status", internalHandler.FavoriteStatus)
 		api.Post("/library", internalHandler.UpsertLibrary)
 		api.Delete("/library/:comicSlug", internalHandler.DeleteLibrary)
 		api.Get("/loves/me", internalHandler.ListMyLoves)

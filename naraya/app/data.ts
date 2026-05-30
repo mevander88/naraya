@@ -161,6 +161,12 @@ export type LoveStatus = {
   loved: boolean;
 };
 
+export type FavoriteStatus = {
+  targetSlug: string;
+  count: number;
+  favorited: boolean;
+};
+
 export type LoveItem = {
   id: string;
   targetSlug: string;
@@ -421,6 +427,21 @@ export async function getLibrary(): Promise<LibraryItem[]> {
     return payload.items ?? [];
   } catch {
     return [];
+  }
+}
+
+export async function getFavoriteStatus(targetSlug: string): Promise<FavoriteStatus> {
+  try {
+    const response = await fetch(`${apiBaseURL()}/library/${encodeURIComponent(targetSlug)}/status`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
+    });
+    if (!response.ok) {
+      return { targetSlug, count: 0, favorited: false };
+    }
+    return (await response.json()) as FavoriteStatus;
+  } catch {
+    return { targetSlug, count: 0, favorited: false };
   }
 }
 

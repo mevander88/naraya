@@ -219,6 +219,30 @@ func (s *Store) DeleteLibrary(ctx context.Context, userID, comicSlug string) err
 	return err
 }
 
+func (s *Store) FavoriteStatus(ctx context.Context, userID, targetSlug string) (model.FavoriteStatus, error) {
+	targetSlug = strings.TrimSpace(targetSlug)
+	if targetSlug == "" {
+		return model.FavoriteStatus{}, fmt.Errorf("targetSlug is required")
+	}
+	var count int64
+	var favorited bool
+	err := s.db.QueryRow(ctx, `
+		SELECT COALESCE(fc.favorite_count, 0)::bigint,
+		       CASE WHEN $2 = '' THEN false ELSE EXISTS (
+		           SELECT 1 FROM naraya_library_items mine
+		           WHERE mine.comic_slug = $1
+		             AND mine.user_id = NULLIF($2, '')::uuid
+		             AND mine.is_bookmarked = true
+		       ) END
+		FROM (VALUES ($1::text)) target(target_slug)
+		LEFT JOIN naraya_favorite_counts fc ON fc.target_slug = target.target_slug
+	`, targetSlug, strings.TrimSpace(userID)).Scan(&count, &favorited)
+	if err != nil {
+		return model.FavoriteStatus{}, err
+	}
+	return model.FavoriteStatus{TargetSlug: targetSlug, Count: int(count), Favorited: favorited}, nil
+}
+
 func (s *Store) LoveStatus(ctx context.Context, userID, targetSlug string) (model.LoveStatus, error) {
 	targetSlug = strings.TrimSpace(targetSlug)
 	if targetSlug == "" {

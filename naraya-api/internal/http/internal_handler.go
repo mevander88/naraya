@@ -264,6 +264,15 @@ func (h *InternalHandler) DeleteLibrary(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+func (h *InternalHandler) FavoriteStatus(c *fiber.Ctx) error {
+	targetSlug := strings.TrimSpace(c.Params("targetSlug"))
+	status, err := h.store.FavoriteStatus(c.UserContext(), h.optionalUserID(c), targetSlug)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(status)
+}
+
 func (h *InternalHandler) LoveStatus(c *fiber.Ctx) error {
 	targetSlug := strings.TrimSpace(c.Params("targetSlug"))
 	status, err := h.store.LoveStatus(c.UserContext(), h.optionalUserID(c), targetSlug)

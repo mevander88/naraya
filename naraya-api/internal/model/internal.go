@@ -91,6 +91,12 @@ type LoveStatus struct {
 	Loved      bool   `json:"loved"`
 }
 
+type FavoriteStatus struct {
+	TargetSlug string `json:"targetSlug"`
+	Count      int    `json:"count"`
+	Favorited  bool   `json:"favorited"`
+}
+
 type CreateLoveRequest struct {
 	UserID      string `json:"userId"`
 	TargetSlug  string `json:"targetSlug"`

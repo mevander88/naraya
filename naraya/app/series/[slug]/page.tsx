@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { Play } from 'lucide-react';
-import { getComments, getLoveStatus, getSeriesDetail, titleFromSlug } from '../../data';
+import { getComments, getFavoriteStatus, getLoveStatus, getSeriesDetail, titleFromSlug } from '../../data';
 import { BookmarkButton, LoveButton } from '../../internal-actions';
 import { CollapsibleInfo, CollapsibleSynopsis } from '../collapsible-detail';
 import { CommentThread } from '../../comment-thread';
@@ -43,8 +43,9 @@ export default async function SeriesDetailPage({ params }: PageProps) {
   const detail = await getSeriesDetail(slug);
   if (!detail) notFound();
 
-  const [comments, loveStatus] = await Promise.all([
+  const [comments, favoriteStatus, loveStatus] = await Promise.all([
     getComments({ comicSlug: detail.slug }),
+    getFavoriteStatus(detail.slug),
     getLoveStatus(detail.slug),
   ]);
   const latest = detail.episodes[0];
@@ -105,7 +106,7 @@ export default async function SeriesDetailPage({ params }: PageProps) {
                   Nonton Episode Terbaru
                 </Link>
               ) : null}
-              <BookmarkButton comic={bookmarkSeries} variant="button" />
+              <BookmarkButton comic={bookmarkSeries} variant="button" initialStatus={favoriteStatus} />
             </div>
             <div className="flex flex-wrap gap-3 md:pt-1">
               <LoveButton
