@@ -97,25 +97,29 @@ export default async function SeriesDetailPage({ params }: PageProps) {
               </Link>
             ))}
           </div>
-          <div className="mt-8 flex flex-wrap gap-3">
-            {latest ? (
-              <Link href={`/nonton/${latest.slug}`} className="interactive-lift inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-7 py-3 font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
-                <Play size={18} fill="currentColor" />
-                Nonton Episode Terbaru
-              </Link>
-            ) : null}
-            <BookmarkButton comic={bookmarkSeries} variant="button" />
-            <LoveButton
-              target={{
-                slug: detail.slug,
-                title: detail.title,
-                kind: 'series',
-                coverUrl: detail.cover,
-                targetUrl: `/series/${detail.slug}`,
-              }}
-              initialStatus={loveStatus}
-            />
-            <ShareButton title={detail.title} path={`/series/${detail.slug}`} />
+          <div className="mt-8 flex flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
+              {latest ? (
+                <Link href={`/nonton/${latest.slug}`} className="interactive-lift inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-7 py-3 font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
+                  <Play size={18} fill="currentColor" />
+                  Nonton Episode Terbaru
+                </Link>
+              ) : null}
+              <BookmarkButton comic={bookmarkSeries} variant="button" />
+            </div>
+            <div className="flex flex-wrap gap-3 md:pt-1">
+              <LoveButton
+                target={{
+                  slug: detail.slug,
+                  title: detail.title,
+                  kind: 'series',
+                  coverUrl: detail.cover,
+                  targetUrl: `/series/${detail.slug}`,
+                }}
+                initialStatus={loveStatus}
+              />
+              <ShareButton title={detail.title} path={`/series/${detail.slug}`} />
+            </div>
           </div>
         </div>
       </div>

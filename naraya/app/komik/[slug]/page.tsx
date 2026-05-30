@@ -88,24 +88,28 @@ export default async function ComicDetailPage({ params }: PageProps) {
               </Link>
             ))}
           </div>
-          <div className="mt-8 flex flex-wrap gap-3">
-            {latest ? (
-              <Link href={`/baca/${latest.slug}`} className="interactive-lift inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-7 py-3 font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
-                Baca {latest.number ? `Chapter ${latest.number}` : 'Chapter Terbaru'}
-              </Link>
-            ) : null}
-            <BookmarkButton comic={bookmarkComic} variant="button" />
-            <LoveButton
-              target={{
-                slug: detail.slug,
-                title: detail.title,
-                kind: 'comic',
-                coverUrl: detail.cover,
-                targetUrl: `/komik/${detail.slug}`,
-              }}
-              initialStatus={loveStatus}
-            />
-            <ShareButton title={detail.title} path={`/komik/${detail.slug}`} />
+          <div className="mt-8 flex flex-col gap-3">
+            <div className="flex flex-wrap gap-3">
+              {latest ? (
+                <Link href={`/baca/${latest.slug}`} className="interactive-lift inline-flex min-h-12 items-center justify-center rounded-xl bg-primary px-7 py-3 font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
+                  Baca {latest.number ? `Chapter ${latest.number}` : 'Chapter Terbaru'}
+                </Link>
+              ) : null}
+              <BookmarkButton comic={bookmarkComic} variant="button" />
+            </div>
+            <div className="flex flex-wrap gap-3 md:pt-1">
+              <LoveButton
+                target={{
+                  slug: detail.slug,
+                  title: detail.title,
+                  kind: 'comic',
+                  coverUrl: detail.cover,
+                  targetUrl: `/komik/${detail.slug}`,
+                }}
+                initialStatus={loveStatus}
+              />
+              <ShareButton title={detail.title} path={`/komik/${detail.slug}`} />
+            </div>
           </div>
         </div>
       </div>
