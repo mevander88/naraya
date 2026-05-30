@@ -107,11 +107,14 @@ export function CommentHistorySection({ initialPage, library }: { initialPage: C
         </div>
       </div>
       <div className="mt-5 grid min-w-0 gap-3">
-        {visibleComments.map((comment) => {
+        {visibleComments.map((comment, index) => {
           const target = commentTarget(comment, library);
           const detail = commentHistoryDetail(comment);
+          const separatorClass = index < visibleComments.length - 1
+            ? 'after:pointer-events-none after:absolute after:inset-x-4 after:bottom-0 after:h-px after:bg-white/10'
+            : '';
           return (
-            <Link key={comment.id} href={target.href} className="block min-w-0 max-w-full overflow-hidden rounded-2xl bg-background/35 p-4 transition hover:bg-primary/10">
+            <Link key={comment.id} href={target.href} className={`relative block min-w-0 max-w-full overflow-hidden rounded-2xl bg-background/35 p-4 transition hover:bg-primary/10 ${separatorClass}`}>
               <div className="flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <div className="min-w-0 max-w-full sm:flex-1">
                   <p className="break-words text-sm font-bold text-on-surface sm:truncate">{target.title}</p>
