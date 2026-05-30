@@ -129,6 +129,7 @@ export default async function ComicDetailPage({ params }: PageProps) {
               initialComments={comments.items}
               initialNextCursor={comments.nextCursor}
               initialHasMore={comments.hasMore}
+              initialTotal={comments.total}
               title="Komentar Komik"
               emptyText="Belum ada komentar untuk komik ini."
             />

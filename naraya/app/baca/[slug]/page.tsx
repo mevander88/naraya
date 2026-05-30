@@ -103,6 +103,7 @@ export default async function ReaderPage({ params }: PageProps) {
           initialComments={comments.items}
           initialNextCursor={comments.nextCursor}
           initialHasMore={comments.hasMore}
+          initialTotal={comments.total}
           title="Komentar Chapter"
           emptyText="Belum ada komentar untuk chapter ini."
           variant="panel"

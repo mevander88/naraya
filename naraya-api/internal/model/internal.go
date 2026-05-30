@@ -74,6 +74,18 @@ type LibraryItem struct {
 	LastReadAt        *time.Time `json:"lastReadAt,omitempty"`
 }
 
+type LibraryCounts struct {
+	Favorites int `json:"favorites"`
+	History   int `json:"history"`
+}
+
+type LibraryPage struct {
+	Items      []LibraryItem `json:"items"`
+	Counts     LibraryCounts `json:"counts"`
+	NextCursor string        `json:"nextCursor,omitempty"`
+	HasMore    bool          `json:"hasMore"`
+}
+
 type LoveItem struct {
 	ID          string    `json:"id"`
 	UserID      string    `json:"userId"`

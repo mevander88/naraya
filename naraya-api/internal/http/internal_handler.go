@@ -123,12 +123,20 @@ func (h *InternalHandler) ListLibrary(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	items, err := h.store.ListLibrary(c.UserContext(), id)
+	page, err := h.store.ListLibrary(
+		c.UserContext(),
+		id,
+		c.Query("section"),
+		c.Query("type"),
+		c.Query("status"),
+		strings.TrimSpace(c.Query("cursor")),
+		libraryLimit(c),
+	)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
-	normalizeLibraryItems(items)
-	return c.JSON(fiber.Map{"items": items})
+	normalizeLibraryItems(page.Items)
+	return c.JSON(page)
 }
 
 func (h *InternalHandler) UpsertLibrary(c *fiber.Ctx) error {
@@ -371,6 +379,17 @@ func commentLimit(c *fiber.Ctx) int {
 	}
 	if limit > 50 {
 		return 50
+	}
+	return limit
+}
+
+func libraryLimit(c *fiber.Ctx) int {
+	limit := c.QueryInt("limit", 24)
+	if limit < 1 {
+		return 24
+	}
+	if limit > 100 {
+		return 100
 	}
 	return limit
 }

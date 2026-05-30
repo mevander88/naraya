@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/sync/singleflight"
 	"naraya-api/internal/model"
 )
 
@@ -21,18 +22,23 @@ type Service struct {
 	latestCache  *Cache[model.PagedComics]
 	detailCache  *Cache[model.ComicDetail]
 	readerCache  *Cache[model.ChapterReader]
+	seriesCache  *Cache[model.SeriesDetail]
+	episodeCache *Cache[model.EpisodeReader]
 	catalogCache *Cache[model.PagedCatalog]
 	homeCache    *Cache[model.HomePayload]
 	genreCache   *Cache[[]model.CatalogItem]
 	menuCache    *Cache[[]model.MenuItem]
+	group        singleflight.Group
 }
 
-func NewService(client *Client, latest *Cache[model.PagedComics], detail *Cache[model.ComicDetail], reader *Cache[model.ChapterReader], catalog *Cache[model.PagedCatalog], home *Cache[model.HomePayload], genres *Cache[[]model.CatalogItem], menu *Cache[[]model.MenuItem]) *Service {
+func NewService(client *Client, latest *Cache[model.PagedComics], detail *Cache[model.ComicDetail], reader *Cache[model.ChapterReader], series *Cache[model.SeriesDetail], episode *Cache[model.EpisodeReader], catalog *Cache[model.PagedCatalog], home *Cache[model.HomePayload], genres *Cache[[]model.CatalogItem], menu *Cache[[]model.MenuItem]) *Service {
 	return &Service{
 		client:       client,
 		latestCache:  latest,
 		detailCache:  detail,
 		readerCache:  reader,
+		seriesCache:  series,
+		episodeCache: episode,
 		catalogCache: catalog,
 		homeCache:    home,
 		genreCache:   genres,
@@ -48,23 +54,32 @@ func (s *Service) Latest(ctx context.Context, page int) (model.PagedComics, erro
 	if cached, ok := s.latestCache.Get(key); ok {
 		return cached, nil
 	}
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.latestCache.Get(key); ok {
+			return cached, nil
+		}
 
-	path := "/latest-komik/"
-	if page > 1 {
-		path = fmt.Sprintf("/latest-komik/page/%d/", page)
-	}
-	doc, _, err := s.client.getDocument(ctx, path)
+		path := "/latest-komik/"
+		if page > 1 {
+			path = fmt.Sprintf("/latest-komik/page/%d/", page)
+		}
+		doc, _, err := s.client.getDocument(ctx, path)
+		if err != nil {
+			return model.PagedComics{}, err
+		}
+
+		result := model.PagedComics{
+			Page:       page,
+			TotalPages: extractTotalPages(doc),
+			Items:      parseLatestCards(doc, s.client),
+		}
+		s.latestCache.Set(key, result)
+		return result, nil
+	})
 	if err != nil {
 		return model.PagedComics{}, err
 	}
-
-	result := model.PagedComics{
-		Page:       page,
-		TotalPages: extractTotalPages(doc),
-		Items:      parseLatestCards(doc, s.client),
-	}
-	s.latestCache.Set(key, result)
-	return result, nil
+	return value.(model.PagedComics), nil
 }
 
 func (s *Service) LatestSeries(ctx context.Context, page int) (model.PagedComics, error) {
@@ -75,61 +90,79 @@ func (s *Service) LatestSeries(ctx context.Context, page int) (model.PagedComics
 	if cached, ok := s.latestCache.Get(key); ok {
 		return cached, nil
 	}
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.latestCache.Get(key); ok {
+			return cached, nil
+		}
 
-	path := "/latest-series/"
-	if page > 1 {
-		path = fmt.Sprintf("/latest-series/page/%d/", page)
-	}
-	doc, _, err := s.client.getDocument(ctx, path)
+		path := "/latest-series/"
+		if page > 1 {
+			path = fmt.Sprintf("/latest-series/page/%d/", page)
+		}
+		doc, _, err := s.client.getDocument(ctx, path)
+		if err != nil {
+			return model.PagedComics{}, err
+		}
+
+		result := model.PagedComics{
+			Page:       page,
+			TotalPages: extractTotalPages(doc),
+			Items:      parseLatestCards(doc, s.client),
+		}
+		s.latestCache.Set(key, result)
+		return result, nil
+	})
 	if err != nil {
 		return model.PagedComics{}, err
 	}
-
-	result := model.PagedComics{
-		Page:       page,
-		TotalPages: extractTotalPages(doc),
-		Items:      parseLatestCards(doc, s.client),
-	}
-	s.latestCache.Set(key, result)
-	return result, nil
+	return value.(model.PagedComics), nil
 }
 
 func (s *Service) Home(ctx context.Context) (model.HomePayload, error) {
 	if cached, ok := s.homeCache.Get("home"); ok {
 		return cached, nil
 	}
-	homeDoc, _, err := s.client.getDocument(ctx, "/")
-	if err != nil {
-		return model.HomePayload{}, err
-	}
-	comics := make([]model.ComicCard, 0)
-	series := make([]model.ComicCard, 0)
-	for page := 1; page <= 3; page++ {
-		result, err := s.Latest(ctx, page)
+	value, err, _ := s.group.Do("home", func() (any, error) {
+		if cached, ok := s.homeCache.Get("home"); ok {
+			return cached, nil
+		}
+		homeDoc, _, err := s.client.getDocument(ctx, "/")
 		if err != nil {
 			return model.HomePayload{}, err
 		}
-		comics = append(comics, result.Items...)
-	}
-	for page := 1; page <= 2; page++ {
-		result, err := s.LatestSeries(ctx, page)
+		comics := make([]model.ComicCard, 0)
+		series := make([]model.ComicCard, 0)
+		for page := 1; page <= 3; page++ {
+			result, err := s.Latest(ctx, page)
+			if err != nil {
+				return model.HomePayload{}, err
+			}
+			comics = append(comics, result.Items...)
+		}
+		for page := 1; page <= 2; page++ {
+			result, err := s.LatestSeries(ctx, page)
+			if err != nil {
+				return model.HomePayload{}, err
+			}
+			series = append(series, result.Items...)
+		}
+		genres, err := s.Genres(ctx)
 		if err != nil {
 			return model.HomePayload{}, err
 		}
-		series = append(series, result.Items...)
-	}
-	genres, err := s.Genres(ctx)
+		result := model.HomePayload{
+			Featured: dedupeComicCards(parseHomeWidgetCards(homeDoc, s.client)),
+			Comics:   dedupeComicCards(comics),
+			Series:   dedupeComicCards(series),
+			Genres:   genres,
+		}
+		s.homeCache.Set("home", result)
+		return result, nil
+	})
 	if err != nil {
 		return model.HomePayload{}, err
 	}
-	result := model.HomePayload{
-		Featured: dedupeComicCards(parseHomeWidgetCards(homeDoc, s.client)),
-		Comics:   dedupeComicCards(comics),
-		Series:   dedupeComicCards(series),
-		Genres:   genres,
-	}
-	s.homeCache.Set("home", result)
-	return result, nil
+	return value.(model.HomePayload), nil
 }
 
 func (s *Service) Detail(ctx context.Context, slug string) (model.ComicDetail, error) {
@@ -140,30 +173,40 @@ func (s *Service) Detail(ctx context.Context, slug string) (model.ComicDetail, e
 	if cached, ok := s.detailCache.Get(slug); ok {
 		return cached, nil
 	}
+	key := "detail:" + slug
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.detailCache.Get(slug); ok {
+			return cached, nil
+		}
 
-	doc, target, err := s.client.getDocument(ctx, "/komik/"+slug+"/")
+		doc, target, err := s.client.getDocument(ctx, "/komik/"+slug+"/")
+		if err != nil {
+			return model.ComicDetail{}, err
+		}
+
+		detail := model.ComicDetail{
+			Slug:        slug,
+			URL:         target,
+			Title:       metaContent(doc, "property", "og:title"),
+			Cover:       coverProxyURL(metaContent(doc, "property", "og:image")),
+			Description: parseSeriesDescription(doc),
+			Info:        parseSeriesInfo(doc),
+			Chapters:    parseChapters(doc, s.client),
+		}
+		if detail.Description == "" {
+			detail.Description = metaContent(doc, "name", "description")
+		}
+		detail.Title = strings.TrimSuffix(detail.Title, " - MyNimeku")
+		parseDetailBadges(doc, &detail)
+		parseGenres(doc, &detail)
+
+		s.detailCache.Set(slug, detail)
+		return detail, nil
+	})
 	if err != nil {
 		return model.ComicDetail{}, err
 	}
-
-	detail := model.ComicDetail{
-		Slug:        slug,
-		URL:         target,
-		Title:       metaContent(doc, "property", "og:title"),
-		Cover:       coverProxyURL(metaContent(doc, "property", "og:image")),
-		Description: parseSeriesDescription(doc),
-		Info:        parseSeriesInfo(doc),
-		Chapters:    parseChapters(doc, s.client),
-	}
-	if detail.Description == "" {
-		detail.Description = metaContent(doc, "name", "description")
-	}
-	detail.Title = strings.TrimSuffix(detail.Title, " - MyNimeku")
-	parseDetailBadges(doc, &detail)
-	parseGenres(doc, &detail)
-
-	s.detailCache.Set(slug, detail)
-	return detail, nil
+	return value.(model.ComicDetail), nil
 }
 
 func (s *Service) Series(ctx context.Context, slug string) (model.SeriesDetail, error) {
@@ -171,24 +214,38 @@ func (s *Service) Series(ctx context.Context, slug string) (model.SeriesDetail, 
 	if slug == "" {
 		return model.SeriesDetail{}, fmt.Errorf("slug is required")
 	}
-	doc, target, err := s.client.getDocument(ctx, "/series/"+slug+"/")
+	if cached, ok := s.seriesCache.Get(slug); ok {
+		return cached, nil
+	}
+	key := "series:" + slug
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.seriesCache.Get(slug); ok {
+			return cached, nil
+		}
+		doc, target, err := s.client.getDocument(ctx, "/series/"+slug+"/")
+		if err != nil {
+			return model.SeriesDetail{}, err
+		}
+		detail := model.SeriesDetail{
+			Slug:        slug,
+			URL:         target,
+			Title:       strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
+			Cover:       coverProxyURL(metaContent(doc, "property", "og:image")),
+			Description: parseSeriesDescription(doc),
+			Genres:      parseSeriesGenres(doc),
+			Info:        parseSeriesInfo(doc),
+			Episodes:    parseSeriesEpisodes(doc, s.client),
+		}
+		if detail.Description == "" {
+			detail.Description = metaContent(doc, "name", "description")
+		}
+		s.seriesCache.Set(slug, detail)
+		return detail, nil
+	})
 	if err != nil {
 		return model.SeriesDetail{}, err
 	}
-	detail := model.SeriesDetail{
-		Slug:        slug,
-		URL:         target,
-		Title:       strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
-		Cover:       coverProxyURL(metaContent(doc, "property", "og:image")),
-		Description: parseSeriesDescription(doc),
-		Genres:      parseSeriesGenres(doc),
-		Info:        parseSeriesInfo(doc),
-		Episodes:    parseSeriesEpisodes(doc, s.client),
-	}
-	if detail.Description == "" {
-		detail.Description = metaContent(doc, "name", "description")
-	}
-	return detail, nil
+	return value.(model.SeriesDetail), nil
 }
 
 func (s *Service) Episode(ctx context.Context, slug string) (model.EpisodeReader, error) {
@@ -196,23 +253,37 @@ func (s *Service) Episode(ctx context.Context, slug string) (model.EpisodeReader
 	if slug == "" {
 		return model.EpisodeReader{}, fmt.Errorf("slug is required")
 	}
-	doc, _, err := s.client.getDocument(ctx, "/episode/"+slug+"/")
+	if cached, ok := s.episodeCache.Get(slug); ok {
+		return cached, nil
+	}
+	key := "episode:" + slug
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.episodeCache.Get(slug); ok {
+			return cached, nil
+		}
+		doc, _, err := s.client.getDocument(ctx, "/episode/"+slug+"/")
+		if err != nil {
+			return model.EpisodeReader{}, err
+		}
+		servers := parseEpisodeServers(doc)
+		reader := model.EpisodeReader{
+			Slug:       slug,
+			Title:      strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
+			Cover:      coverProxyURL(metaContent(doc, "property", "og:image")),
+			SeriesSlug: parseEpisodeSeriesSlug(doc, s.client),
+			Servers:    servers,
+			Downloads:  []model.EpisodeDownload{},
+		}
+		if len(reader.Servers) > 0 {
+			reader.PlayerURL = reader.Servers[0].URL
+		}
+		s.episodeCache.Set(slug, reader)
+		return reader, nil
+	})
 	if err != nil {
 		return model.EpisodeReader{}, err
 	}
-	servers := parseEpisodeServers(doc)
-	reader := model.EpisodeReader{
-		Slug:       slug,
-		Title:      strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
-		Cover:      coverProxyURL(metaContent(doc, "property", "og:image")),
-		SeriesSlug: parseEpisodeSeriesSlug(doc, s.client),
-		Servers:    servers,
-		Downloads:  []model.EpisodeDownload{},
-	}
-	if len(reader.Servers) > 0 {
-		reader.PlayerURL = reader.Servers[0].URL
-	}
-	return reader, nil
+	return value.(model.EpisodeReader), nil
 }
 
 func (s *Service) VideoSource(ctx context.Context, playerURL string) (model.EpisodeServer, error) {
@@ -241,19 +312,28 @@ func (s *Service) Catalog(ctx context.Context, page int, genre string, comicType
 	if cached, ok := s.catalogCache.Get(key); ok {
 		return cached, nil
 	}
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.catalogCache.Get(key); ok {
+			return cached, nil
+		}
 
-	path := catalogPath(page, genre, comicType, status)
-	doc, _, err := s.client.getDocument(ctx, path)
+		path := catalogPath(page, genre, comicType, status)
+		doc, _, err := s.client.getDocument(ctx, path)
+		if err != nil {
+			return model.PagedCatalog{}, err
+		}
+		result := model.PagedCatalog{
+			Page:       page,
+			TotalPages: extractTotalPagesFromSelector(doc, ".mynimeku-mix-feed__pagination a, .mynimeku-mix-feed__pagination span"),
+			Items:      parseMixCatalog(doc, s.client),
+		}
+		s.catalogCache.Set(key, result)
+		return result, nil
+	})
 	if err != nil {
 		return model.PagedCatalog{}, err
 	}
-	result := model.PagedCatalog{
-		Page:       page,
-		TotalPages: extractTotalPagesFromSelector(doc, ".mynimeku-mix-feed__pagination a, .mynimeku-mix-feed__pagination span"),
-		Items:      parseMixCatalog(doc, s.client),
-	}
-	s.catalogCache.Set(key, result)
-	return result, nil
+	return value.(model.PagedCatalog), nil
 }
 
 func (s *Service) AZCatalog(ctx context.Context, page int, letter string) (model.PagedCatalog, error) {
@@ -265,26 +345,34 @@ func (s *Service) AZCatalog(ctx context.Context, page int, letter string) (model
 	if cached, ok := s.catalogCache.Get(key); ok {
 		return cached, nil
 	}
-
-	path := "/a-z-list/"
-	if letter != "" && letter != "all" {
-		path = fmt.Sprintf("/a-z-list/abjad/%s/", letter)
-	}
-	if page > 1 {
-		path = strings.TrimRight(path, "/") + fmt.Sprintf("/page/%d/", page)
-	}
-	doc, _, err := s.client.getDocument(ctx, path)
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.catalogCache.Get(key); ok {
+			return cached, nil
+		}
+		path := "/a-z-list/"
+		if letter != "" && letter != "all" {
+			path = fmt.Sprintf("/a-z-list/abjad/%s/", letter)
+		}
+		if page > 1 {
+			path = strings.TrimRight(path, "/") + fmt.Sprintf("/page/%d/", page)
+		}
+		doc, _, err := s.client.getDocument(ctx, path)
+		if err != nil {
+			return model.PagedCatalog{}, err
+		}
+		result := model.PagedCatalog{
+			Page:       page,
+			TotalPages: extractTotalPagesFromSelector(doc, ".mynimeku-az-feed__pagination a, .mynimeku-az-feed__pagination span, .page-numbers, .pagination a, .pagination span, .nav-links a, .nav-links span"),
+			TotalItems: extractAZTotalItems(doc),
+			Items:      parseAZCatalog(doc, s.client),
+		}
+		s.catalogCache.Set(key, result)
+		return result, nil
+	})
 	if err != nil {
 		return model.PagedCatalog{}, err
 	}
-	result := model.PagedCatalog{
-		Page:       page,
-		TotalPages: extractTotalPagesFromSelector(doc, ".mynimeku-az-feed__pagination a, .mynimeku-az-feed__pagination span, .page-numbers, .pagination a, .pagination span, .nav-links a, .nav-links span"),
-		TotalItems: extractAZTotalItems(doc),
-		Items:      parseAZCatalog(doc, s.client),
-	}
-	s.catalogCache.Set(key, result)
-	return result, nil
+	return value.(model.PagedCatalog), nil
 }
 
 func slugifyAZLetter(value string) string {
@@ -336,96 +424,131 @@ func (s *Service) Search(ctx context.Context, query string) (model.PagedCatalog,
 	if cached, ok := s.catalogCache.Get(key); ok {
 		return cached, nil
 	}
-
-	path := "/?s=" + url.QueryEscape(query)
-	doc, _, err := s.client.getDocument(ctx, path)
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.catalogCache.Get(key); ok {
+			return cached, nil
+		}
+		path := "/?s=" + url.QueryEscape(query)
+		doc, _, err := s.client.getDocument(ctx, path)
+		if err != nil {
+			return model.PagedCatalog{}, err
+		}
+		result := model.PagedCatalog{
+			Page:       1,
+			TotalPages: extractTotalPagesFromSelector(doc, ".mynimeku-search-feed__pagination a, .mynimeku-search-feed__pagination span, .page-numbers"),
+			Items:      parseSearchCatalog(doc, s.client),
+		}
+		if len(result.Items) > 8 {
+			result.Items = result.Items[:8]
+		}
+		s.catalogCache.Set(key, result)
+		return result, nil
+	})
 	if err != nil {
 		return model.PagedCatalog{}, err
 	}
-	result := model.PagedCatalog{
-		Page:       1,
-		TotalPages: extractTotalPagesFromSelector(doc, ".mynimeku-search-feed__pagination a, .mynimeku-search-feed__pagination span, .page-numbers"),
-		Items:      parseSearchCatalog(doc, s.client),
-	}
-	if len(result.Items) > 8 {
-		result.Items = result.Items[:8]
-	}
-	s.catalogCache.Set(key, result)
-	return result, nil
+	return value.(model.PagedCatalog), nil
 }
 
 func (s *Service) Genres(ctx context.Context) ([]model.CatalogItem, error) {
 	if cached, ok := s.genreCache.Get("genres"); ok {
 		return cached, nil
 	}
-	doc, _, err := s.client.getDocument(ctx, "/genre-list/")
+	value, err, _ := s.group.Do("genres", func() (any, error) {
+		if cached, ok := s.genreCache.Get("genres"); ok {
+			return cached, nil
+		}
+		doc, _, err := s.client.getDocument(ctx, "/genre-list/")
+		if err != nil {
+			return nil, err
+		}
+		items := parseGenreList(doc, s.client)
+		s.genreCache.Set("genres", items)
+		return items, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	items := parseGenreList(doc, s.client)
-	s.genreCache.Set("genres", items)
-	return items, nil
+	return value.([]model.CatalogItem), nil
 }
 
 func (s *Service) Navigation(ctx context.Context) ([]model.MenuItem, error) {
 	if cached, ok := s.menuCache.Get("navigation"); ok {
 		return cached, nil
 	}
-	doc, _, err := s.client.getDocument(ctx, "/")
+	value, err, _ := s.group.Do("navigation", func() (any, error) {
+		if cached, ok := s.menuCache.Get("navigation"); ok {
+			return cached, nil
+		}
+		doc, _, err := s.client.getDocument(ctx, "/")
+		if err != nil {
+			return nil, err
+		}
+		items := parseNavigation(doc, s.client)
+		s.menuCache.Set("navigation", items)
+		return items, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	items := parseNavigation(doc, s.client)
-	s.menuCache.Set("navigation", items)
-	return items, nil
+	return value.([]model.MenuItem), nil
 }
 
 func (s *Service) SitemapCatalog(ctx context.Context) (model.PagedCatalog, error) {
 	if cached, ok := s.catalogCache.Get("sitemap:catalog"); ok {
 		return cached, nil
 	}
-	body, _, err := s.client.getBytes(ctx, "/sitemap_index.xml")
+	value, err, _ := s.group.Do("sitemap:catalog", func() (any, error) {
+		if cached, ok := s.catalogCache.Get("sitemap:catalog"); ok {
+			return cached, nil
+		}
+		body, _, err := s.client.getBytes(ctx, "/sitemap_index.xml")
+		if err != nil {
+			return model.PagedCatalog{}, err
+		}
+		var index sitemapIndex
+		if err := xml.Unmarshal(body, &index); err != nil {
+			return model.PagedCatalog{}, err
+		}
+
+		seen := map[string]bool{}
+		items := make([]model.CatalogItem, 0)
+		for _, entry := range index.Sitemaps {
+			loc := strings.TrimSpace(entry.Loc)
+			if loc == "" || !isCatalogSitemap(loc) {
+				continue
+			}
+			pageItems, err := s.parseURLSet(ctx, loc, "")
+			if err != nil {
+				continue
+			}
+			for _, item := range pageItems {
+				if item.URL == "" || seen[item.URL] {
+					continue
+				}
+				sourceType := catalogSourceType(item.URL)
+				if sourceType == "" {
+					continue
+				}
+				item.SourceType = sourceType
+				seen[item.URL] = true
+				items = append(items, item)
+			}
+		}
+
+		result := model.PagedCatalog{
+			Page:       1,
+			TotalPages: 1,
+			TotalItems: strconv.Itoa(len(items)),
+			Items:      items,
+		}
+		s.catalogCache.Set("sitemap:catalog", result)
+		return result, nil
+	})
 	if err != nil {
 		return model.PagedCatalog{}, err
 	}
-	var index sitemapIndex
-	if err := xml.Unmarshal(body, &index); err != nil {
-		return model.PagedCatalog{}, err
-	}
-
-	seen := map[string]bool{}
-	items := make([]model.CatalogItem, 0)
-	for _, entry := range index.Sitemaps {
-		loc := strings.TrimSpace(entry.Loc)
-		if loc == "" || !isCatalogSitemap(loc) {
-			continue
-		}
-		pageItems, err := s.parseURLSet(ctx, loc, "")
-		if err != nil {
-			continue
-		}
-		for _, item := range pageItems {
-			if item.URL == "" || seen[item.URL] {
-				continue
-			}
-			sourceType := catalogSourceType(item.URL)
-			if sourceType == "" {
-				continue
-			}
-			item.SourceType = sourceType
-			seen[item.URL] = true
-			items = append(items, item)
-		}
-	}
-
-	result := model.PagedCatalog{
-		Page:       1,
-		TotalPages: 1,
-		TotalItems: strconv.Itoa(len(items)),
-		Items:      items,
-	}
-	s.catalogCache.Set("sitemap:catalog", result)
-	return result, nil
+	return value.(model.PagedCatalog), nil
 }
 
 func (s *Service) Reader(ctx context.Context, slug string) (model.ChapterReader, error) {
@@ -436,45 +559,54 @@ func (s *Service) Reader(ctx context.Context, slug string) (model.ChapterReader,
 	if cached, ok := s.readerCache.Get(slug); ok {
 		return cached, nil
 	}
-
-	doc, target, err := s.client.getDocument(ctx, "/chapter/"+slug+"/")
-	if err != nil {
-		return model.ChapterReader{}, err
-	}
-
-	reader := model.ChapterReader{
-		Slug:   slug,
-		URL:    target,
-		Title:  strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
-		Images: parseReaderImages(doc, s.client),
-	}
-	if restImages, err := s.readerImagesFromREST(ctx, doc); err == nil && len(restImages) > 0 {
-		reader.Images = restImages
-	}
-	doc.Find(`script[type="application/ld+json"]`).EachWithBreak(func(_ int, sel *goquery.Selection) bool {
-		text := sel.Text()
-		re := regexp.MustCompile(`https:\\/\\/www\.mynimeku\.com\\/komik\\/[^"]+\\/`)
-		if match := re.FindString(text); match != "" {
-			reader.ComicURL = strings.ReplaceAll(match, `\/`, `/`)
-			reader.ComicSlug = slugFromURL(reader.ComicURL)
-			return false
+	key := "reader:" + slug
+	value, err, _ := s.group.Do(key, func() (any, error) {
+		if cached, ok := s.readerCache.Get(slug); ok {
+			return cached, nil
 		}
-		return true
-	})
-	if reader.ComicSlug == "" {
-		doc.Find(`a[href*="/komik/"]`).EachWithBreak(func(_ int, link *goquery.Selection) bool {
-			href := s.client.absolute(attrAny(link, "href"))
-			if strings.Contains(href, "/komik/") {
-				reader.ComicURL = href
-				reader.ComicSlug = slugFromURL(href)
+		doc, target, err := s.client.getDocument(ctx, "/chapter/"+slug+"/")
+		if err != nil {
+			return model.ChapterReader{}, err
+		}
+
+		reader := model.ChapterReader{
+			Slug:   slug,
+			URL:    target,
+			Title:  strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
+			Images: parseReaderImages(doc, s.client),
+		}
+		if restImages, err := s.readerImagesFromREST(ctx, doc); err == nil && len(restImages) > 0 {
+			reader.Images = restImages
+		}
+		doc.Find(`script[type="application/ld+json"]`).EachWithBreak(func(_ int, sel *goquery.Selection) bool {
+			text := sel.Text()
+			re := regexp.MustCompile(`https:\\/\\/www\.mynimeku\.com\\/komik\\/[^"]+\\/`)
+			if match := re.FindString(text); match != "" {
+				reader.ComicURL = strings.ReplaceAll(match, `\/`, `/`)
+				reader.ComicSlug = slugFromURL(reader.ComicURL)
 				return false
 			}
 			return true
 		})
-	}
+		if reader.ComicSlug == "" {
+			doc.Find(`a[href*="/komik/"]`).EachWithBreak(func(_ int, link *goquery.Selection) bool {
+				href := s.client.absolute(attrAny(link, "href"))
+				if strings.Contains(href, "/komik/") {
+					reader.ComicURL = href
+					reader.ComicSlug = slugFromURL(href)
+					return false
+				}
+				return true
+			})
+		}
 
-	s.readerCache.Set(slug, reader)
-	return reader, nil
+		s.readerCache.Set(slug, reader)
+		return reader, nil
+	})
+	if err != nil {
+		return model.ChapterReader{}, err
+	}
+	return value.(model.ChapterReader), nil
 }
 
 func parseLatestCards(doc *goquery.Document, client *Client) []model.ComicCard {

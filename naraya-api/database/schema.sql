@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict UxOwudhuSPWJjFc7NxIDxdexgnXa4tEE3qB0Yk2Ivfg3LleqjCDW2UB0ysREQtO
+\restrict qtobQfrpylfpVTkV94zFzkNcCJmAuJMd3oI3sGkDrUK0YJNqpGbHJcdttYZAZqv
 
 -- Dumped from database version 18.1 (Debian 18.1-1.pgdg12+2)
 -- Dumped by pg_dump version 18.1 (Debian 18.1-1.pgdg12+2)
@@ -237,6 +237,17 @@ WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.
 
 
 --
+-- Name: naraya_schema_migrations; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_schema_migrations (
+    filename text NOT NULL,
+    checksum text NOT NULL,
+    applied_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
 -- Name: naraya_sessions; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -342,6 +353,14 @@ ALTER TABLE ONLY public.naraya_love_items
 
 ALTER TABLE ONLY public.naraya_love_items
     ADD CONSTRAINT naraya_love_unique_user_target UNIQUE (user_id, target_slug);
+
+
+--
+-- Name: naraya_schema_migrations naraya_schema_migrations_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_schema_migrations
+    ADD CONSTRAINT naraya_schema_migrations_pkey PRIMARY KEY (filename);
 
 
 --
@@ -455,6 +474,13 @@ CREATE INDEX naraya_library_bookmark_idx ON public.naraya_library_items USING bt
 
 
 --
+-- Name: naraya_library_favorite_kind_cursor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_favorite_kind_cursor_idx ON public.naraya_library_items USING btree (user_id, content_kind, updated_at DESC, id DESC) WHERE (is_bookmarked = true);
+
+
+--
 -- Name: naraya_library_favorite_target_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -469,6 +495,13 @@ CREATE INDEX naraya_library_history_idx ON public.naraya_library_items USING btr
 
 
 --
+-- Name: naraya_library_history_kind_status_cursor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_history_kind_status_cursor_idx ON public.naraya_library_items USING btree (user_id, content_kind, status, updated_at DESC, id DESC) WHERE ((status <> 'planned'::text) OR (progress_percent > 0));
+
+
+--
 -- Name: naraya_library_user_kind_updated_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -480,6 +513,13 @@ CREATE INDEX naraya_library_user_kind_updated_idx ON public.naraya_library_items
 --
 
 CREATE INDEX naraya_library_user_status_idx ON public.naraya_library_items USING btree (user_id, status);
+
+
+--
+-- Name: naraya_library_user_updated_cursor_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_user_updated_cursor_idx ON public.naraya_library_items USING btree (user_id, updated_at DESC, id DESC);
 
 
 --
@@ -632,5 +672,5 @@ ALTER TABLE ONLY public.naraya_user_settings
 -- PostgreSQL database dump complete
 --
 
-\unrestrict UxOwudhuSPWJjFc7NxIDxdexgnXa4tEE3qB0Yk2Ivfg3LleqjCDW2UB0ysREQtO
+\unrestrict qtobQfrpylfpVTkV94zFzkNcCJmAuJMd3oI3sGkDrUK0YJNqpGbHJcdttYZAZqv
 

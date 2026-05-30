@@ -1,4 +1,4 @@
-import { getLatestComics, getLibrary } from '../data';
+import { getLatestComics, getLibraryPage } from '../data';
 import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -18,7 +18,7 @@ export default async function LibraryPage() {
     redirect('/login?next=/library');
   }
 
-  const [library, suggestions] = await Promise.all([getLibrary(), getLatestComics()]);
+  const [library, suggestions] = await Promise.all([getLibraryPage({ section: 'favorites', limit: 24 }), getLatestComics()]);
 
-  return <LibraryClient library={library} suggestions={suggestions} />;
+  return <LibraryClient initialPage={library} suggestions={suggestions} />;
 }

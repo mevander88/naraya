@@ -148,6 +148,7 @@ export default async function WatchEpisodePage({ params }: PageProps) {
           initialComments={comments.items}
           initialNextCursor={comments.nextCursor}
           initialHasMore={comments.hasMore}
+          initialTotal={comments.total}
           title="Diskusi Penonton"
           emptyText="Belum ada komentar untuk episode ini."
         />

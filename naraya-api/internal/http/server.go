@@ -40,6 +40,8 @@ func NewServer(cfg config.Config) *fiber.App {
 		scraper.NewCache[model.PagedComics](cfg.CacheTTL),
 		scraper.NewCache[model.ComicDetail](cfg.CacheTTL),
 		scraper.NewCache[model.ChapterReader](cfg.CacheTTL),
+		scraper.NewCache[model.SeriesDetail](cfg.CacheTTL),
+		scraper.NewCache[model.EpisodeReader](cfg.CacheTTL),
 		scraper.NewCache[model.PagedCatalog](cfg.CacheTTL),
 		scraper.NewCache[model.HomePayload](cfg.CacheTTL),
 		scraper.NewCache[[]model.CatalogItem](cfg.CacheTTL),

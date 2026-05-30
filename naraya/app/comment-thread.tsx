@@ -12,6 +12,7 @@ type CommentThreadProps = {
   initialComments?: CommentItem[];
   initialNextCursor?: string;
   initialHasMore?: boolean;
+  initialTotal?: number;
   title: string;
   emptyText: string;
   variant?: 'embedded' | 'panel' | 'reader';
@@ -43,6 +44,7 @@ export function CommentThread({
   initialComments = [],
   initialNextCursor = '',
   initialHasMore = false,
+  initialTotal = initialComments.length,
   title,
   emptyText,
   variant = 'embedded',
@@ -50,6 +52,7 @@ export function CommentThread({
   const [comments, setComments] = useState<CommentItem[]>(initialComments);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [hasMore, setHasMore] = useState(initialHasMore);
+  const [total, setTotal] = useState(initialTotal);
   const [body, setBody] = useState('');
   const [replyingTo, setReplyingTo] = useState<CommentItem | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'loadingMore' | 'sending' | 'sent' | 'error'>('idle');
@@ -105,11 +108,12 @@ export function CommentThread({
         cache: 'no-store',
       });
       if (!response.ok) throw new Error('comments failed');
-      const payload = (await response.json()) as { items?: CommentItem[]; nextCursor?: string; hasMore?: boolean };
+      const payload = (await response.json()) as { items?: CommentItem[]; nextCursor?: string; hasMore?: boolean; total?: number };
       const items = payload.items ?? [];
       setComments((current) => (mode === 'more' ? mergeComments(current, items) : items));
       setNextCursor(payload.nextCursor ?? '');
       setHasMore(Boolean(payload.hasMore));
+      if (mode === 'reset' && typeof payload.total === 'number') setTotal(payload.total);
       if (mode === 'reset') setReplyingTo(null);
       setStatus('idle');
     } catch {
@@ -224,7 +228,7 @@ export function CommentThread({
         <div className="flex min-w-0 items-center gap-3">
           <MessageCircle size={20} className="shrink-0 text-primary" />
           <h2 className="min-w-0 font-display text-2xl font-semibold">{title}</h2>
-          <span className="shrink-0 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">{comments.length}</span>
+          <span className="shrink-0 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">{total}</span>
         </div>
         <button
           type="button"

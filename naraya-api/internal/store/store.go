@@ -161,29 +161,53 @@ func (s *Store) UpdateSettings(ctx context.Context, userID string, req model.Upd
 	return scanSettings(row)
 }
 
-func (s *Store) ListLibrary(ctx context.Context, userID string) ([]model.LibraryItem, error) {
+func (s *Store) ListLibrary(ctx context.Context, userID, section, contentKind, status, cursor string, limit int) (model.LibraryPage, error) {
+	limit = normalizeLibraryLimit(limit)
+	where, args := libraryFilter(userID, section, contentKind, status)
+	if updatedAt, id, ok := decodeCommentCursor(cursor); ok {
+		where += fmt.Sprintf(" AND (updated_at, id) < ($%d::timestamptz, $%d::uuid)", len(args)+1, len(args)+2)
+		args = append(args, updatedAt, id)
+	}
+	args = append(args, limit+1)
 	rows, err := s.db.Query(ctx, `
 		SELECT id::text, user_id::text, comic_slug, comic_title, COALESCE(content_kind, 'comic'), cover_url, source_url, latest_chapter_slug,
 		       last_chapter_slug, last_chapter_title, status, progress_percent, is_bookmarked,
 		       added_at, updated_at, last_read_at
 		FROM naraya_library_items
-		WHERE user_id = $1
-		ORDER BY updated_at DESC
-	`, userID)
+		WHERE `+where+`
+		ORDER BY updated_at DESC, id DESC
+		LIMIT $`+fmt.Sprint(len(args))+`
+	`, args...)
 	if err != nil {
-		return nil, err
+		return model.LibraryPage{}, err
 	}
 	defer rows.Close()
 
-	items := make([]model.LibraryItem, 0)
+	items := make([]model.LibraryItem, 0, limit+1)
 	for rows.Next() {
 		item, err := scanLibraryItem(rows)
 		if err != nil {
-			return nil, err
+			return model.LibraryPage{}, err
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return model.LibraryPage{}, err
+	}
+	hasMore := len(items) > limit
+	if hasMore {
+		items = items[:limit]
+	}
+	nextCursor := ""
+	if hasMore && len(items) > 0 {
+		last := items[len(items)-1]
+		nextCursor = encodeCommentCursor(last.UpdatedAt, last.ID)
+	}
+	counts, err := s.libraryCounts(ctx, userID)
+	if err != nil {
+		return model.LibraryPage{}, err
+	}
+	return model.LibraryPage{Items: items, Counts: counts, NextCursor: nextCursor, HasMore: hasMore}, nil
 }
 
 func (s *Store) UpsertLibrary(ctx context.Context, req model.UpsertLibraryRequest) (model.LibraryItem, error) {
@@ -217,6 +241,67 @@ func (s *Store) UpsertLibrary(ctx context.Context, req model.UpsertLibraryReques
 func (s *Store) DeleteLibrary(ctx context.Context, userID, comicSlug string) error {
 	_, err := s.db.Exec(ctx, `DELETE FROM naraya_library_items WHERE user_id = $1 AND comic_slug = $2`, userID, comicSlug)
 	return err
+}
+
+func normalizeLibraryLimit(limit int) int {
+	if limit < 1 {
+		return 24
+	}
+	if limit > 100 {
+		return 100
+	}
+	return limit
+}
+
+func libraryFilter(userID, section, contentKind, status string) (string, []any) {
+	args := []any{userID}
+	conditions := []string{"user_id = $1"}
+	switch strings.TrimSpace(section) {
+	case "all":
+	case "history":
+		conditions = append(conditions, "(status <> 'planned' OR progress_percent > 0)")
+		if normalizedStatus := normalizeLibraryStatus(status); normalizedStatus != "" {
+			args = append(args, normalizedStatus)
+			conditions = append(conditions, fmt.Sprintf("status = $%d", len(args)))
+		}
+	default:
+		conditions = append(conditions, "is_bookmarked = true")
+	}
+	if normalizedKind := normalizeLibraryKind(contentKind); normalizedKind != "" {
+		args = append(args, normalizedKind)
+		conditions = append(conditions, fmt.Sprintf("COALESCE(content_kind, 'comic') = $%d", len(args)))
+	}
+	return strings.Join(conditions, " AND "), args
+}
+
+func normalizeLibraryKind(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "anime", "series":
+		return "series"
+	case "komik", "comic":
+		return "comic"
+	default:
+		return ""
+	}
+}
+
+func normalizeLibraryStatus(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "reading", "completed":
+		return strings.ToLower(strings.TrimSpace(value))
+	default:
+		return ""
+	}
+}
+
+func (s *Store) libraryCounts(ctx context.Context, userID string) (model.LibraryCounts, error) {
+	var counts model.LibraryCounts
+	err := s.db.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*)::int FROM naraya_library_items WHERE user_id = $1 AND is_bookmarked = true),
+			(SELECT count(*)::int FROM naraya_library_items WHERE user_id = $1 AND (status <> 'planned' OR progress_percent > 0))
+	`, userID).Scan(&counts.Favorites, &counts.History)
+	return counts, err
 }
 
 func (s *Store) FavoriteStatus(ctx context.Context, userID, targetSlug string) (model.FavoriteStatus, error) {
@@ -320,6 +405,9 @@ func (s *Store) ListComments(ctx context.Context, comicSlug, chapterSlug string,
 	limit = normalizeCommentLimit(limit)
 
 	filter, args := commentTargetFilter(comicSlug, chapterSlug)
+	countFilter := filter
+	countArgs := append([]any(nil), args...)
+	cursorEmpty := strings.TrimSpace(cursor) == ""
 	if createdAt, id, ok := decodeCommentCursor(cursor); ok {
 		filter += fmt.Sprintf(" AND (c.created_at, c.id) < ($%d::timestamptz, $%d::uuid)", len(args)+1, len(args)+2)
 		args = append(args, createdAt, id)
@@ -372,7 +460,18 @@ func (s *Store) ListComments(ctx context.Context, comicSlug, chapterSlug string,
 	items := make([]model.Comment, 0, len(roots)+len(replies))
 	items = append(items, roots...)
 	items = append(items, replies...)
-	return model.CommentPage{Items: items, NextCursor: nextCursor, HasMore: hasMore}, nil
+	total := 0
+	if cursorEmpty {
+		if err := s.db.QueryRow(ctx, `
+			SELECT count(*)::int
+			FROM naraya_comments c
+			WHERE c.deleted_at IS NULL
+			  AND `+countFilter+`
+		`, countArgs...).Scan(&total); err != nil {
+			return model.CommentPage{}, err
+		}
+	}
+	return model.CommentPage{Items: items, NextCursor: nextCursor, HasMore: hasMore, Total: total}, nil
 }
 
 func (s *Store) ListUserComments(ctx context.Context, userID string, limit int, cursor string) (model.CommentPage, error) {
@@ -450,31 +549,33 @@ func (s *Store) listLatestReplies(ctx context.Context, roots []model.Comment, pe
 	placeholders := make([]string, 0, len(roots))
 	for index, root := range roots {
 		args = append(args, root.ID)
-		placeholders = append(placeholders, fmt.Sprintf("$%d::uuid", index+1))
+		placeholders = append(placeholders, fmt.Sprintf("($%d::uuid)", index+1))
 	}
 	args = append(args, perParent)
 	rows, err := s.db.Query(ctx, `
-		SELECT id, user_id, username, display_name, avatar_url, role,
-		       comic_slug, chapter_slug, parent_id,
-		       parent_username, parent_display_name, parent_body,
-		       body, is_edited, created_at, updated_at
-		FROM (
+		WITH root_ids(id) AS (VALUES `+strings.Join(placeholders, ",")+`)
+		SELECT reply.id, reply.user_id, reply.username, reply.display_name, reply.avatar_url, reply.role,
+		       reply.comic_slug, reply.chapter_slug, reply.parent_id,
+		       reply.parent_username, reply.parent_display_name, reply.parent_body,
+		       reply.body, reply.is_edited, reply.created_at, reply.updated_at
+		FROM root_ids roots
+		JOIN LATERAL (
 			SELECT c.id::text AS id, c.user_id::text AS user_id, u.username, u.display_name, u.avatar_url, u.role,
 			       c.comic_slug, c.chapter_slug, COALESCE(c.parent_id::text, '') AS parent_id,
 			       COALESCE(pu.username, '') AS parent_username,
 			       COALESCE(pu.display_name, '') AS parent_display_name,
 			       COALESCE(parent.body, '') AS parent_body,
-			       c.body, c.is_edited, c.created_at, c.updated_at,
-			       row_number() OVER (PARTITION BY c.parent_id ORDER BY c.created_at DESC, c.id DESC) AS reply_rank
+			       c.body, c.is_edited, c.created_at, c.updated_at
 			FROM naraya_comments c
 			JOIN naraya_users u ON u.id = c.user_id
 			JOIN naraya_comments parent ON parent.id = c.parent_id AND parent.deleted_at IS NULL
 			LEFT JOIN naraya_users pu ON pu.id = parent.user_id
 			WHERE c.deleted_at IS NULL
-			  AND c.parent_id IN (`+strings.Join(placeholders, ",")+`)
-		) ranked
-		WHERE reply_rank <= $`+fmt.Sprint(len(args))+`
-		ORDER BY created_at DESC, id DESC
+			  AND c.parent_id = roots.id
+			ORDER BY c.created_at DESC, c.id DESC
+			LIMIT $`+fmt.Sprint(len(args))+`
+		) reply ON true
+		ORDER BY reply.created_at DESC, reply.id DESC
 	`, args...)
 	if err != nil {
 		return nil, err

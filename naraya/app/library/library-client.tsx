@@ -2,12 +2,12 @@
 
 import { Check, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import type { ComicCardData, LibraryItem } from '../data';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { ComicCardData, LibraryItem, LibraryPageData } from '../data';
 import { apiCredentials, apiURL } from '../lib/client-api';
 
 type LibraryClientProps = {
-  library: LibraryItem[];
+  initialPage: LibraryPageData;
   suggestions: ComicCardData[];
 };
 
@@ -42,32 +42,74 @@ function itemHref(item: LibraryItem) {
   return item.lastChapterSlug ? `/baca/${item.lastChapterSlug}` : item.latestChapterSlug ? `/baca/${item.latestChapterSlug}` : `/komik/${item.comicSlug}`;
 }
 
-function isHistoryItem(item: LibraryItem) {
-  return item.status !== 'planned' || item.progressPercent > 0;
-}
-
 function itemProgressLabel(item: LibraryItem) {
   if (item.status === 'completed') return 'Selesai';
   if (item.progressPercent > 0) return `Progress ${item.progressPercent}%`;
   return item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca';
 }
 
-export function LibraryClient({ library, suggestions }: LibraryClientProps) {
+function typeQuery(value: TypeFilter) {
+  if (value === 'Anime') return 'series';
+  if (value === 'Komik') return 'comic';
+  return '';
+}
+
+export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) {
   const [activeSection, setActiveSection] = useState<LibrarySection>('favorites');
   const [activeType, setActiveType] = useState<TypeFilter>('All');
   const [activeStatus, setActiveStatus] = useState<StatusFilter>('all');
+  const [items, setItems] = useState<LibraryItem[]>(initialPage.items);
+  const [counts, setCounts] = useState(initialPage.counts);
+  const [nextCursor, setNextCursor] = useState(initialPage.nextCursor ?? '');
+  const [hasMore, setHasMore] = useState(initialPage.hasMore);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [coverOverrides, setCoverOverrides] = useState<Record<string, string>>({});
   const coverRefreshAttempts = useRef(new Set<string>());
-  const favoriteItems = useMemo(() => library.filter((item) => item.isBookmarked), [library]);
-  const historyItems = useMemo(() => library.filter(isHistoryItem), [library]);
-  const currentItems = activeSection === 'favorites' ? favoriteItems : historyItems;
-  const visibleItems = useMemo(() => {
-    return currentItems.filter((item) => {
-      const matchesType = activeType === 'All' || itemKind(item) === activeType;
-      const matchesStatus = activeSection !== 'history' || activeStatus === 'all' || item.status === activeStatus;
-      return matchesType && matchesStatus;
-    });
-  }, [activeSection, activeStatus, activeType, currentItems]);
+  const initialLoadSkipped = useRef(false);
+
+  const fetchLibrary = useCallback(async (mode: 'reset' | 'more' = 'reset') => {
+    if (mode === 'more' && (!hasMore || !nextCursor || loadingMore)) return;
+    if (mode === 'reset') setLoading(true);
+    if (mode === 'more') setLoadingMore(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('section', activeSection);
+      params.set('limit', '24');
+      const kind = typeQuery(activeType);
+      if (kind) params.set('type', kind);
+      if (activeSection === 'history' && activeStatus !== 'all') params.set('status', activeStatus);
+      if (mode === 'more' && nextCursor) params.set('cursor', nextCursor);
+      const response = await fetch(apiURL(`/library?${params.toString()}`), {
+        cache: 'no-store',
+        credentials: apiCredentials(),
+      });
+      if (!response.ok) throw new Error('library failed');
+      const payload = (await response.json()) as LibraryPageData;
+      setItems((current) => (mode === 'more' ? [...current, ...(payload.items ?? [])] : payload.items ?? []));
+      setCounts(payload.counts ?? { favorites: 0, history: 0 });
+      setNextCursor(payload.nextCursor ?? '');
+      setHasMore(Boolean(payload.hasMore));
+    } catch {
+      if (mode === 'reset') {
+        setItems([]);
+        setNextCursor('');
+        setHasMore(false);
+      }
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [activeSection, activeStatus, activeType, hasMore, loadingMore, nextCursor]);
+
+  useEffect(() => {
+    if (!initialLoadSkipped.current) {
+      initialLoadSkipped.current = true;
+      return;
+    }
+    void fetchLibrary('reset');
+  }, [activeSection, activeStatus, activeType]);
+
   const refreshCover = useCallback(async (item: LibraryItem) => {
     if (coverRefreshAttempts.current.has(item.id)) return;
     coverRefreshAttempts.current.add(item.id);
@@ -117,7 +159,7 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
       <div className="mt-7 grid gap-3">
         <div className="flex min-w-0 flex-wrap gap-2">
           {librarySections.map((section) => {
-            const total = section.id === 'favorites' ? favoriteItems.length : historyItems.length;
+            const total = section.id === 'favorites' ? counts.favorites : counts.history;
             return (
               <button
                 key={section.id}
@@ -153,7 +195,13 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
       </div>
 
       <div className="mt-9 grid gap-4 md:gap-5">
-        {visibleItems.map((item) => (
+        {loading ? (
+          <>
+            <div className="skeleton h-36 rounded-2xl" />
+            <div className="skeleton h-36 rounded-2xl" />
+          </>
+        ) : null}
+        {!loading && items.map((item) => (
           <Link
             key={item.id}
             href={itemHref(item)}
@@ -195,17 +243,22 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
             </span>
           </Link>
         ))}
-        {library.length && !currentItems.length ? (
-          <div className="glass-panel rounded-2xl p-6 text-on-surface-variant">
-            {activeSection === 'favorites' ? 'Belum ada favorit yang disimpan.' : 'Belum ada riwayat baca atau tonton.'}
-          </div>
-        ) : null}
-        {currentItems.length > 0 && !visibleItems.length ? (
+        {!loading && (activeSection === 'favorites' ? counts.favorites : counts.history) > 0 && !items.length ? (
           <div className="glass-panel rounded-2xl p-6 text-on-surface-variant">
             Belum ada item untuk filter ini.
           </div>
         ) : null}
-        {!library.length ? (
+        {!loading && hasMore ? (
+          <button
+            type="button"
+            onClick={() => void fetchLibrary('more')}
+            disabled={loadingMore}
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 text-sm font-bold text-primary transition hover:border-primary/50 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-55"
+          >
+            {loadingMore ? 'Memuat...' : 'Muat lagi'}
+          </button>
+        ) : null}
+        {!loading && !counts.favorites && !counts.history ? (
           <div className="glass-panel rounded-2xl p-6">
             <h3 className="text-xl font-semibold">Rak bacaan masih kosong</h3>
             <p className="mt-2 text-on-surface-variant">Tambahkan komik atau anime ke rak bacaan dari katalog. Di bawah ini rekomendasi terbaru dari Naraya.</p>

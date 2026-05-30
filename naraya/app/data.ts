@@ -155,6 +155,18 @@ export type LibraryItem = {
   lastReadAt?: string;
 };
 
+export type LibraryCounts = {
+  favorites: number;
+  history: number;
+};
+
+export type LibraryPageData = {
+  items: LibraryItem[];
+  counts: LibraryCounts;
+  nextCursor?: string;
+  hasMore: boolean;
+};
+
 export type LoveStatus = {
   targetSlug: string;
   count: number;
@@ -414,20 +426,47 @@ export async function getProfileStats(): Promise<ProfileStats | null> {
   }
 }
 
-export async function getLibrary(): Promise<LibraryItem[]> {
+export async function getLibraryPage(params: { section?: string; type?: string; status?: string; limit?: number; cursor?: string } = {}): Promise<LibraryPageData> {
+  const query = new URLSearchParams();
+  query.set('section', params.section ?? 'favorites');
+  query.set('limit', String(params.limit ?? 24));
+  if (params.type) query.set('type', params.type);
+  if (params.status) query.set('status', params.status);
+  if (params.cursor) query.set('cursor', params.cursor);
   try {
-    const response = await fetch(`${apiBaseURL()}/library`, {
+    const response = await fetch(`${apiBaseURL()}/library?${query.toString()}`, {
       cache: 'no-store',
       headers: await authHeaders(),
     });
     if (!response.ok) {
-      return [];
+      return emptyLibraryPage();
     }
-    const payload = (await response.json()) as { items?: LibraryItem[] };
-    return payload.items ?? [];
+    const payload = (await response.json()) as Partial<LibraryPageData>;
+    return normalizeLibraryPage(payload);
   } catch {
-    return [];
+    return emptyLibraryPage();
   }
+}
+
+export async function getLibrary(): Promise<LibraryItem[]> {
+  const page = await getLibraryPage({ section: 'all', limit: 100 });
+  return page.items;
+}
+
+function emptyLibraryPage(): LibraryPageData {
+  return { items: [], counts: { favorites: 0, history: 0 }, hasMore: false };
+}
+
+function normalizeLibraryPage(payload: Partial<LibraryPageData>): LibraryPageData {
+  return {
+    items: payload.items ?? [],
+    counts: {
+      favorites: payload.counts?.favorites ?? 0,
+      history: payload.counts?.history ?? 0,
+    },
+    nextCursor: payload.nextCursor || undefined,
+    hasMore: Boolean(payload.hasMore),
+  };
 }
 
 export async function getFavoriteStatus(targetSlug: string): Promise<FavoriteStatus> {
