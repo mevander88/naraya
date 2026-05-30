@@ -8,6 +8,8 @@ out/
 # Build outputs
 dist/
 build/
+naraya-api/bin/
+naraya-api/api
 *.exe
 
 # Logs

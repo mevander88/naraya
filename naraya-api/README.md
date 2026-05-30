@@ -52,6 +52,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/naraya?sslmode=disable
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://naraya.biz.id,https://www.naraya.biz.id
 HTTP_TIMEOUT_SECONDS=20
 CACHE_TTL_SECONDS=300
+MEDIA_PROXY_SECRET=change-this-long-random-secret
 ```
 
 Production:
@@ -111,7 +112,7 @@ migrations/  Schema database Naraya
 - `GET /api/series/latest?page=1`
 - `GET /api/series/:slug`
 - `GET /api/episodes/:slug`
-- `GET /api/video-source?url=...`
+- `GET /api/video-source/:token`
 - `GET /api/images/:token`
 - `GET /api/videos/:token`
 
@@ -120,8 +121,6 @@ migrations/  Schema database Naraya
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
-- `POST /api/users`
-- `GET /api/users/:id`
 - `GET /api/me`
 - `GET /api/library`
 - `POST /api/library`
@@ -229,6 +228,7 @@ Environment=DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/naraya?sslmode=requi
 Environment=CORS_ORIGINS=https://naraya.biz.id,https://www.naraya.biz.id
 Environment=HTTP_TIMEOUT_SECONDS=20
 Environment=CACHE_TTL_SECONDS=300
+Environment=MEDIA_PROXY_SECRET=change-this-long-random-secret
 
 [Install]
 WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-import { getCatalogItems, getGenresFromApi } from '../data';
+import { getCatalogItems, getGenresFromApi, getSettings } from '../data';
 import type { Metadata } from 'next';
 import { ExploreClient } from './explore-client';
 
@@ -18,7 +18,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: { q?
   const activeGenre = searchParams.genre ?? 'All';
   const activeType = searchParams.type ?? 'All';
   const activeStatus = searchParams.status ?? 'All';
-  const [catalogPage, availableGenres] = await Promise.all([getCatalogItems(1, { genre: activeGenre, type: activeType, status: activeStatus }), getGenresFromApi()]);
+  const [catalogPage, availableGenres, settings] = await Promise.all([getCatalogItems(1, { genre: activeGenre, type: activeType, status: activeStatus }), getGenresFromApi(), getSettings()]);
   const genres = ['All', ...availableGenres];
 
   return (
@@ -28,6 +28,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: { q?
       totalPages={catalogPage.totalPages}
       genres={genres}
       initialFilters={{ genre: activeGenre, type: activeType, status: activeStatus, query }}
+      matureFilter={settings?.matureFilter ?? false}
     />
   );
 }

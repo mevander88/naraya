@@ -29,22 +29,27 @@ type LoginRequest struct {
 }
 
 type AuthResponse struct {
-	Token     string    `json:"token"`
+	Token     string    `json:"-"`
 	ExpiresAt time.Time `json:"expiresAt"`
 	User      User      `json:"user"`
 }
 
 type UserSettings struct {
 	UserID            string    `json:"userId"`
-	ImmersiveMode     bool      `json:"immersiveMode"`
 	AutoBookmark      bool      `json:"autoBookmark"`
 	MatureFilter      bool      `json:"matureFilter"`
 	HighQualityImages bool      `json:"highQualityImages"`
 	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
+type UserStats struct {
+	LibraryTotal int `json:"libraryTotal"`
+	Completed    int `json:"completed"`
+	CommentTotal int `json:"commentTotal"`
+	LoveTotal    int `json:"loveTotal"`
+}
+
 type UpdateSettingsRequest struct {
-	ImmersiveMode     *bool `json:"immersiveMode"`
 	AutoBookmark      *bool `json:"autoBookmark"`
 	MatureFilter      *bool `json:"matureFilter"`
 	HighQualityImages *bool `json:"highQualityImages"`
@@ -69,6 +74,32 @@ type LibraryItem struct {
 	LastReadAt        *time.Time `json:"lastReadAt,omitempty"`
 }
 
+type LoveItem struct {
+	ID          string    `json:"id"`
+	UserID      string    `json:"userId"`
+	TargetSlug  string    `json:"targetSlug"`
+	TargetTitle string    `json:"targetTitle"`
+	ContentKind string    `json:"contentKind"`
+	CoverURL    string    `json:"coverUrl"`
+	TargetURL   string    `json:"targetUrl"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+type LoveStatus struct {
+	TargetSlug string `json:"targetSlug"`
+	Count      int    `json:"count"`
+	Loved      bool   `json:"loved"`
+}
+
+type CreateLoveRequest struct {
+	UserID      string `json:"userId"`
+	TargetSlug  string `json:"targetSlug"`
+	TargetTitle string `json:"targetTitle"`
+	ContentKind string `json:"contentKind"`
+	CoverURL    string `json:"coverUrl"`
+	TargetURL   string `json:"targetUrl"`
+}
+
 type UpsertLibraryRequest struct {
 	UserID            string `json:"userId"`
 	ComicSlug         string `json:"comicSlug"`
@@ -85,19 +116,29 @@ type UpsertLibraryRequest struct {
 }
 
 type Comment struct {
-	ID          string    `json:"id"`
-	UserID      string    `json:"userId"`
-	Username    string    `json:"username"`
-	DisplayName string    `json:"displayName"`
-	AvatarURL   string    `json:"avatarUrl"`
-	Role        string    `json:"role"`
-	ComicSlug   string    `json:"comicSlug"`
-	ChapterSlug string    `json:"chapterSlug"`
-	ParentID    string    `json:"parentId,omitempty"`
-	Body        string    `json:"body"`
-	IsEdited    bool      `json:"isEdited"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID                string    `json:"id"`
+	UserID            string    `json:"userId"`
+	Username          string    `json:"username"`
+	DisplayName       string    `json:"displayName"`
+	AvatarURL         string    `json:"avatarUrl"`
+	Role              string    `json:"role"`
+	ComicSlug         string    `json:"comicSlug"`
+	ChapterSlug       string    `json:"chapterSlug"`
+	ParentID          string    `json:"parentId,omitempty"`
+	ParentUsername    string    `json:"parentUsername,omitempty"`
+	ParentDisplayName string    `json:"parentDisplayName,omitempty"`
+	ParentBody        string    `json:"parentBody,omitempty"`
+	Body              string    `json:"body"`
+	IsEdited          bool      `json:"isEdited"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+}
+
+type CommentPage struct {
+	Items      []Comment `json:"items"`
+	NextCursor string    `json:"nextCursor,omitempty"`
+	HasMore    bool      `json:"hasMore"`
+	Total      int       `json:"total"`
 }
 
 type CreateCommentRequest struct {

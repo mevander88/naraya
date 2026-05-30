@@ -1,13 +1,14 @@
 package http
 
 import (
-	"encoding/base64"
 	stdhttp "net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"naraya-api/internal/proxytoken"
 	"naraya-api/internal/scraper"
 )
 
@@ -151,8 +152,15 @@ func (h *ComicHandler) Episode(c *fiber.Ctx) error {
 }
 
 func (h *ComicHandler) VideoSource(c *fiber.Ctx) error {
-	c.Set("Cache-Control", "public, max-age=300")
-	result, err := h.service.VideoSource(c.Context(), c.Query("url"))
+	if !allowMediaRequest(c) {
+		return fiber.NewError(fiber.StatusForbidden, "media request denied")
+	}
+	setPrivateMediaHeaders(c, "application/json")
+	target, err := proxytoken.Decode(c.Params("token"))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid video source token")
+	}
+	result, err := h.service.VideoSource(c.Context(), target)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
@@ -160,11 +168,14 @@ func (h *ComicHandler) VideoSource(c *fiber.Ctx) error {
 }
 
 func (h *ComicHandler) Image(c *fiber.Ctx) error {
-	decoded, err := base64.RawURLEncoding.DecodeString(c.Params("token"))
+	target, scope, err := proxytoken.DecodeWithScope(c.Params("token"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid image token")
 	}
-	target := string(decoded)
+	publicImage := scope == "public-image"
+	if !publicImage && !allowMediaRequest(c) {
+		return fiber.NewError(fiber.StatusForbidden, "media request denied")
+	}
 	if !strings.HasPrefix(target, "https://") && !strings.HasPrefix(target, "http://") {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid image target")
 	}
@@ -187,9 +198,12 @@ func (h *ComicHandler) Image(c *fiber.Ctx) error {
 	if contentType == "" {
 		contentType = "image/jpeg"
 	}
-	c.Set("Content-Type", contentType)
-	c.Set("Cache-Control", "public, max-age=604800, immutable")
-	c.Set("Cross-Origin-Resource-Policy", "cross-origin")
+	if publicImage {
+		setPublicImageHeaders(c, contentType)
+	} else {
+		setPrivateMediaHeaders(c, contentType)
+	}
+	c.Set("Content-Disposition", `inline; filename="naraya-image"`)
 	if length := res.Header.Get("Content-Length"); length != "" {
 		c.Set("Content-Length", length)
 	}
@@ -197,11 +211,13 @@ func (h *ComicHandler) Image(c *fiber.Ctx) error {
 }
 
 func (h *ComicHandler) Video(c *fiber.Ctx) error {
-	decoded, err := base64.RawURLEncoding.DecodeString(c.Params("token"))
+	if !allowMediaRequest(c) {
+		return fiber.NewError(fiber.StatusForbidden, "media request denied")
+	}
+	target, err := proxytoken.Decode(c.Params("token"))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid video token")
 	}
-	target := string(decoded)
 	if !strings.HasPrefix(target, "https://") && !strings.HasPrefix(target, "http://") {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid video target")
 	}
@@ -236,10 +252,9 @@ func (h *ComicHandler) Video(c *fiber.Ctx) error {
 		contentType = "video/mp4"
 	}
 	c.Status(res.StatusCode)
-	c.Set("Content-Type", contentType)
-	c.Set("Content-Disposition", "inline")
+	setPrivateMediaHeaders(c, contentType)
+	c.Set("Content-Disposition", `inline; filename="naraya-video"`)
 	c.Set("Accept-Ranges", "bytes")
-	c.Set("Cache-Control", "private, max-age=300")
 	if length := res.Header.Get("Content-Length"); length != "" {
 		c.Set("Content-Length", length)
 	}
@@ -247,4 +262,48 @@ func (h *ComicHandler) Video(c *fiber.Ctx) error {
 		c.Set("Content-Range", contentRange)
 	}
 	return c.SendStream(res.Body)
+}
+
+func setPrivateMediaHeaders(c *fiber.Ctx, contentType string) {
+	c.Set("Content-Type", contentType)
+	c.Set("Cache-Control", "private, no-store, max-age=0")
+	c.Set("Pragma", "no-cache")
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("X-Robots-Tag", "noindex, nofollow, noarchive")
+	c.Set("Referrer-Policy", "same-origin")
+	c.Set("Cross-Origin-Resource-Policy", "same-origin")
+}
+
+func setPublicImageHeaders(c *fiber.Ctx, contentType string) {
+	c.Set("Content-Type", contentType)
+	c.Set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800")
+	c.Set("X-Content-Type-Options", "nosniff")
+	c.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	c.Set("Cross-Origin-Resource-Policy", "cross-origin")
+}
+
+func allowMediaRequest(c *fiber.Ctx) bool {
+	site := strings.ToLower(strings.TrimSpace(c.Get("Sec-Fetch-Site")))
+	if site == "same-origin" || site == "same-site" {
+		return true
+	}
+	return isAllowedMediaURL(c.Get("Origin")) || isAllowedMediaURL(c.Get("Referer"))
+}
+
+func isAllowedMediaURL(raw string) bool {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	switch host {
+	case "naraya.biz.id", "www.naraya.biz.id", "localhost", "127.0.0.1":
+		return true
+	default:
+		return false
+	}
 }

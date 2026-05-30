@@ -1,0 +1,21 @@
+[Unit]
+Description=Naraya API
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/naraya/naraya-api
+EnvironmentFile=/etc/naraya/naraya-api.env
+ExecStart=/var/www/naraya/naraya-api/bin/naraya-api
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

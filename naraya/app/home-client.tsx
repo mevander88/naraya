@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import { Play } from 'lucide-react';
 import Link from 'next/link';
 import { HomeHeroSlider } from './home-hero-slider';
@@ -23,18 +23,21 @@ export function HomeClient({ heroItems = [], comics = [], series = [], genres = 
   const slides = heroItems.slice(0, 8);
   const slideCount = slides.length;
   const [activeIndex, setActiveIndex] = useState(0);
+  const motionBudget = useMotionBudget();
 
   useEffect(() => {
     setActiveIndex((index) => (slideCount ? index % slideCount : 0));
   }, [slideCount]);
 
   useEffect(() => {
-    if (slideCount < 2) return;
+    if (slideCount < 2 || motionBudget.reduced || motionBudget.saveData) return;
     const timer = window.setInterval(() => {
       setActiveIndex((index) => (index + 1) % slideCount);
-    }, 2000);
+    }, motionBudget.mobile ? 6500 : 4200);
     return () => window.clearInterval(timer);
-  }, [slideCount]);
+  }, [motionBudget.mobile, motionBudget.reduced, motionBudget.saveData, slideCount]);
+
+  useScrollReveal([heroItems.length, comics.length, series.length, genres.length]);
 
   return (
     <>
@@ -43,6 +46,67 @@ export function HomeClient({ heroItems = [], comics = [], series = [], genres = 
       <HomeStaticSections heroItems={heroItems} comics={comics} series={series} genres={genres} />
     </>
   );
+}
+
+function useMotionBudget() {
+  const [budget, setBudget] = useState({ mobile: false, reduced: false, saveData: false });
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia('(max-width: 767px)');
+    const reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+
+    function sync() {
+      setBudget({
+        mobile: mobileQuery.matches,
+        reduced: reduceQuery.matches,
+        saveData: Boolean(connection?.saveData),
+      });
+    }
+
+    sync();
+    mobileQuery.addEventListener('change', sync);
+    reduceQuery.addEventListener('change', sync);
+    return () => {
+      mobileQuery.removeEventListener('change', sync);
+      reduceQuery.removeEventListener('change', sync);
+    };
+  }, []);
+
+  return budget;
+}
+
+function useScrollReveal(dependencies: unknown[]) {
+  useEffect(() => {
+    const reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-scroll-reveal]'));
+    if (!nodes.length) return;
+
+    if (reduceQuery.matches) {
+      nodes.forEach((node) => node.classList.add('is-visible'));
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
+      });
+    }, {
+      rootMargin: '0px 0px -12% 0px',
+      threshold: 0.12,
+    });
+
+    nodes.forEach((node, index) => {
+      if (!node.style.getPropertyValue('--reveal-delay')) {
+        node.style.setProperty('--reveal-delay', `${Math.min(index % 3, 2) * 60}ms`);
+      }
+      observer.observe(node);
+    });
+
+    return () => observer.disconnect();
+  }, dependencies);
 }
 
 const HomeStaticSections = memo(function HomeStaticSections({ heroItems, comics, series, genres }: { heroItems: ComicCardData[]; comics: ComicCardData[]; series: ComicCardData[]; genres: string[] }) {
@@ -68,55 +132,15 @@ function HeroControlRail({
   onSelect: (index: number) => void;
 }) {
   const activeComic = slides[activeIndex] ?? slides[0];
-  const railRef = useRef<HTMLDivElement | null>(null);
-  const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const setCardRef = useCallback((index: number) => (node: HTMLButtonElement | null) => {
-    cardRefs.current[index] = node;
-  }, []);
-
-  useEffect(() => {
-    const rail = railRef.current;
-    const card = cardRefs.current[activeIndex];
-    if (!rail || !card) return;
-    if (!rail.contains(card)) return;
-    if (activeIndex === 0) {
-      animateRailScroll(rail, 0);
-      return;
-    }
-    const railScrollLeft = rail.scrollLeft;
-    const railClientWidth = rail.clientWidth;
-    const maxScroll = Math.max(0, rail.scrollWidth - railClientWidth);
-    const firstCard = cardRefs.current[0];
-    const secondCard = cardRefs.current[1];
-    const cardStep = firstCard && secondCard ? secondCard.offsetLeft - firstCard.offsetLeft : card.offsetWidth + 8;
-    const cardLeft = firstCard ? firstCard.offsetLeft + activeIndex * cardStep : card.offsetLeft;
-    const safeGap = 28;
-    const cardRight = cardLeft + card.offsetWidth;
-    const visibleLeft = railScrollLeft + safeGap;
-    const visibleRight = railScrollLeft + railClientWidth - safeGap;
-    let nextLeft = railScrollLeft;
-    if (cardLeft < visibleLeft) {
-      nextLeft = Math.max(0, cardLeft - safeGap);
-    } else if (cardRight > visibleRight) {
-      nextLeft = Math.min(maxScroll, cardRight - railClientWidth + safeGap);
-    }
-    if (nextLeft === railScrollLeft) return;
-
-    return animateRailScroll(rail, nextLeft);
-  }, [activeIndex]);
-
   if (!activeComic) return null;
 
   const activeHref = latestHref(activeComic);
 
   return (
     <section className="relative z-10 -mt-10 px-container-mobile md:-mt-12 md:px-container-desktop">
-      <div className="reveal-soft overflow-hidden rounded-[2rem] border border-white/10 bg-background/78 shadow-2xl shadow-black/25 backdrop-blur-xl">
+      <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-background/78 shadow-2xl shadow-black/25 backdrop-blur-xl">
         <div className="grid gap-0 md:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.7fr)]">
-          <div
-            key={activeComic.slug}
-            className="relative min-h-44 overflow-hidden p-5 transition duration-500 ease-out animate-in fade-in slide-in-from-bottom-4 md:border-r md:border-white/10"
-          >
+          <div className="relative min-h-44 overflow-hidden p-5 md:border-r md:border-white/10">
             <img
               src={activeComic.image}
               alt={activeComic.title}
@@ -127,14 +151,14 @@ function HeroControlRail({
             <div className="absolute inset-0 bg-gradient-to-r from-primary/14 via-background/10 to-transparent" />
             <div className="relative max-w-[72%]">
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Sedang tampil</p>
-              <h2 className="mt-3 line-clamp-2 font-display text-2xl font-bold leading-tight text-on-surface">
+              <h2 className="mt-3 line-clamp-2 break-words font-display text-2xl font-bold leading-tight text-on-surface">
                 {activeComic.title}
               </h2>
               <p className="mt-2 line-clamp-2 text-sm leading-6 text-on-surface-variant">{activeComic.episode}</p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
                   href={activeHref}
-                  className="interactive-lift inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary transition hover:brightness-110 active:scale-95"
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-on-primary hover:brightness-110"
                 >
                   <Play size={16} fill="currentColor" />
                   {activeComic.kind === 'series' ? 'Nonton episode' : 'Buka chapter'}
@@ -144,22 +168,19 @@ function HeroControlRail({
             </div>
           </div>
 
-          <div ref={railRef} className="flex gap-2 overflow-x-auto overflow-y-visible overscroll-x-contain px-3 pb-3 pt-6 [scrollbar-width:none] md:px-4 md:pb-4 md:pt-7 [&::-webkit-scrollbar]:hidden">
+          <div className="flex gap-2 overflow-x-auto overflow-y-visible overscroll-x-contain px-3 pb-3 pt-6 [scrollbar-width:none] md:px-4 md:pb-4 md:pt-7 [&::-webkit-scrollbar]:hidden">
             {slides.map((comic, index) => {
               const isActive = index === activeIndex;
 
               return (
                 <button
                   key={`${comic.kind || 'item'}-${comic.slug}-${index}`}
-                  ref={setCardRef(index)}
                   type="button"
                   onClick={() => onSelect(index)}
                   aria-label={`Tampilkan ${comic.title}`}
                   aria-pressed={isActive}
-                  className={`group relative min-w-[170px] overflow-hidden rounded-2xl text-left transition duration-500 ease-out active:scale-95 md:min-w-[200px] ${
-                    isActive
-                      ? '-translate-y-1 scale-[1.02] bg-primary/14 shadow-glow'
-                      : 'translate-y-0 bg-white/[0.035] opacity-70 hover:-translate-y-1 hover:bg-white/[0.07] hover:opacity-100'
+                  className={`group relative min-w-[170px] overflow-hidden rounded-2xl text-left md:min-w-[200px] ${
+                    isActive ? 'bg-primary/14 shadow-glow' : 'bg-white/[0.035] opacity-70 hover:bg-white/[0.07] hover:opacity-100'
                   }`}
                 >
                   <div className="relative h-28 overflow-hidden">
@@ -168,9 +189,7 @@ function HeroControlRail({
                       alt=""
                       loading="lazy"
                       decoding="async"
-                      className={`image-render-safe h-full w-full object-cover transition duration-700 ease-out ${
-                        isActive ? 'scale-105 saturate-110' : 'scale-100 saturate-75 group-hover:scale-105 group-hover:saturate-100'
-                      }`}
+                      className={`image-render-safe h-full w-full object-cover ${isActive ? 'saturate-110' : 'saturate-75 group-hover:saturate-100'}`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-background/82 via-transparent to-transparent" />
                     <span className="absolute bottom-2 left-2 rounded-full bg-background/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-on-surface backdrop-blur">
@@ -178,14 +197,10 @@ function HeroControlRail({
                     </span>
                   </div>
                   <div className="px-3 pb-3 pt-3">
-                    <h4 className="line-clamp-2 text-sm font-semibold leading-5 text-on-surface">{comic.title}</h4>
+                    <h4 className="line-clamp-2 break-words text-sm font-semibold leading-5 text-on-surface">{comic.title}</h4>
                     <p className="mt-1 line-clamp-1 text-xs text-on-surface-variant">{comic.episode}</p>
                   </div>
-                  <span
-                    className={`absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-primary transition duration-500 ${
-                      isActive ? 'opacity-100' : 'opacity-0'
-                    }`}
-                  />
+                  <span className={`absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-primary ${isActive ? 'opacity-100' : 'opacity-0'}`} />
                 </button>
               );
             })}
@@ -194,25 +209,4 @@ function HeroControlRail({
       </div>
     </section>
   );
-}
-
-function animateRailScroll(rail: HTMLDivElement, nextLeft: number) {
-  if (nextLeft === rail.scrollLeft) return;
-  const startLeft = rail.scrollLeft;
-  const distance = nextLeft - startLeft;
-  const duration = 360;
-  const startTime = performance.now();
-  let frame = 0;
-  const easeOutCubic = (value: number) => 1 - Math.pow(1 - value, 3);
-  const step = (time: number) => {
-    const progress = Math.min(1, (time - startTime) / duration);
-    rail.scrollLeft = startLeft + distance * easeOutCubic(progress);
-    if (progress < 1) {
-      frame = requestAnimationFrame(step);
-    }
-  };
-  frame = requestAnimationFrame(step);
-  return () => {
-    cancelAnimationFrame(frame);
-  };
 }

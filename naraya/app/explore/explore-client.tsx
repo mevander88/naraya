@@ -4,6 +4,7 @@ import { ChevronDown, LoaderCircle, Search } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ComicCard } from '../components';
 import type { CatalogItem } from '../data';
+import { apiURL, mediaURL } from '../lib/client-api';
 
 type ExploreFilters = {
   genre: string;
@@ -24,20 +25,8 @@ type ExploreClientProps = {
   totalPages: number;
   genres: string[];
   initialFilters: ExploreFilters;
+  matureFilter?: boolean;
 };
-
-function apiBaseURL() {
-  return process.env.NEXT_PUBLIC_NARAYA_API_URL ?? (process.env.NODE_ENV === 'production' ? 'https://naraya.biz.id/api' : 'http://127.0.0.1:4000/api');
-}
-
-function apiOrigin() {
-  return apiBaseURL().replace(/\/api\/?$/, '');
-}
-
-function mediaURL(value?: string) {
-  if (!value) return value;
-  return value.startsWith('/api/') ? `${apiOrigin()}${value}` : value;
-}
 
 function normalizeItems(items: CatalogItem[]) {
   return items.map((item) => ({ ...item, cover: mediaURL(item.cover), description: '' }));
@@ -72,6 +61,22 @@ function itemMatchesActiveFilters(item: CatalogItem, filters: ExploreFilters) {
   return true;
 }
 
+function isMatureItem(item: CatalogItem) {
+  const values = [
+    item.title,
+    item.slug,
+    item.type,
+    item.status,
+    item.description,
+    ...(item.genres ?? []),
+  ].join(' ').toLowerCase();
+  return ['mature', 'adult', '18+', 'ecchi', 'harem', 'smut', 'seinen'].some((term) => values.includes(term));
+}
+
+function applyMatureFilter(items: CatalogItem[], enabled: boolean) {
+  return enabled ? items.filter((item) => !isMatureItem(item)) : items;
+}
+
 function CardSkeleton() {
   return (
     <div>
@@ -82,16 +87,17 @@ function CardSkeleton() {
   );
 }
 
-export function ExploreClient({ initialItems, initialPage, totalPages, genres, initialFilters }: ExploreClientProps) {
+export function ExploreClient({ initialItems, initialPage, totalPages, genres, initialFilters, matureFilter = false }: ExploreClientProps) {
+  const initialVisibleItems = useMemo(() => applyMatureFilter(normalizeItems(initialItems), matureFilter), [initialItems, matureFilter]);
   const [filters, setFilters] = useState(initialFilters);
   const [searchValue, setSearchValue] = useState(initialFilters.query);
-  const [items, setItems] = useState<CatalogItem[]>(() => normalizeItems(initialItems));
+  const [items, setItems] = useState<CatalogItem[]>(() => initialVisibleItems);
   const [page, setPage] = useState(initialPage);
   const [maxPage, setMaxPage] = useState(totalPages);
   const [loadingFirstPage, setLoadingFirstPage] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [searchPending, setSearchPending] = useState(false);
-  const [emptyAfterResponse, setEmptyAfterResponse] = useState(() => initialItems.length === 0);
+  const [emptyAfterResponse, setEmptyAfterResponse] = useState(() => initialVisibleItems.length === 0);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
   const requestedPagesRef = useRef(new Set<number>());
@@ -99,20 +105,21 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
   async function fetchCatalog(nextFilters: ExploreFilters, nextPage: number): Promise<CatalogPayload | null> {
     if (nextFilters.query) {
       const query = new URLSearchParams({ q: nextFilters.query });
-      const response = await fetch(`${apiBaseURL()}/search?${query.toString()}`);
+      const response = await fetch(apiURL(`/search?${query.toString()}`));
       if (!response.ok) return null;
       const payload = (await response.json()) as CatalogPayload;
-      const items = normalizeItems(payload.items ?? []).filter((item) => itemMatchesActiveFilters(item, nextFilters));
+      const items = applyMatureFilter(normalizeItems(payload.items ?? []).filter((item) => itemMatchesActiveFilters(item, nextFilters)), matureFilter);
       return { page: 1, totalPages: 1, items };
     }
 
-    const response = await fetch(`${apiBaseURL()}/comics/catalog?${buildQuery(nextFilters, nextPage).toString()}`);
+    const response = await fetch(apiURL(`/comics/catalog?${buildQuery(nextFilters, nextPage).toString()}`));
     if (!response.ok) return null;
     const payload = (await response.json()) as CatalogPayload;
-    return { ...payload, items: normalizeItems(payload.items ?? []) };
+    return { ...payload, items: applyMatureFilter(normalizeItems(payload.items ?? []), matureFilter) };
   }
 
-  async function changeFilter(partial: Partial<ExploreFilters>) {
+  async function changeFilter(partial: Partial<ExploreFilters>, options: { pushHistory?: boolean } = {}) {
+    const pushHistory = options.pushHistory ?? true;
     const nextFilters = { ...filters, ...partial };
     setFilters(nextFilters);
     setItems([]);
@@ -121,7 +128,9 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
     setLoadingFirstPage(true);
     setEmptyAfterResponse(false);
     requestedPagesRef.current = new Set<number>();
-    window.history.pushState(null, '', buildExploreURL(nextFilters));
+    if (pushHistory) {
+      window.history.pushState(null, '', buildExploreURL(nextFilters));
+    }
 
     try {
       const payload = await fetchCatalog(nextFilters, 1);
@@ -155,17 +164,19 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
   useEffect(() => {
     function handlePopState() {
       const params = new URLSearchParams(window.location.search);
-      void changeFilter({
+      const nextFilters = {
         genre: params.get('genre') ?? 'All',
         type: params.get('type') ?? 'All',
         status: params.get('status') ?? 'All',
         query: params.get('q')?.trim() ?? '',
-      });
+      };
+      setSearchValue(nextFilters.query);
+      void changeFilter(nextFilters, { pushHistory: false });
     }
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  });
+  }, [filters]);
 
   const visibleItems = useMemo(() => {
     const seen = new Set<string>();
@@ -247,6 +258,7 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
                 title: item.title || item.slug.replaceAll('-', ' '),
                 image: item.cover || '/logo.svg',
                 kind: item.kind,
+                latestChapterSlug: item.latestChapterSlug,
                 meta: [item.kind === 'series' ? 'Anime' : item.type, item.status, ...(item.genres ?? []).slice(0, 2)].filter(Boolean).join(' - '),
                 episode: (item.genres ?? []).slice(0, 3).join(' - ') || (item.kind === 'series' ? 'Buka detail untuk daftar episode.' : 'Buka detail untuk daftar chapter.'),
               }}

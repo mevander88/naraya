@@ -4,6 +4,7 @@ import { ArrowRight, LogIn, LogOut, Sparkles, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
+import { apiCredentials, apiURL } from './lib/client-api';
 
 type AuthUser = {
   id: string;
@@ -11,10 +12,6 @@ type AuthUser = {
   displayName: string;
   avatarUrl: string;
 };
-
-function apiBaseURL() {
-  return process.env.NEXT_PUBLIC_NARAYA_API_URL ?? (process.env.NODE_ENV === 'production' ? 'https://naraya.biz.id/api' : 'http://127.0.0.1:4000/api');
-}
 
 function readCookie(name: string) {
   if (typeof document === 'undefined') return '';
@@ -24,15 +21,15 @@ function readCookie(name: string) {
     ?.split('=')[1] ?? '';
 }
 
-function writeSession(token: string, user: AuthUser) {
+function writeSession(user: AuthUser) {
   const maxAge = 60 * 60 * 24 * 30;
-  document.cookie = `naraya_session=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
   document.cookie = `naraya_user=${encodeURIComponent(user.displayName || user.username)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+  window.dispatchEvent(new Event('naraya-auth-changed'));
 }
 
 function clearSession() {
-  document.cookie = 'naraya_session=; path=/; max-age=0; SameSite=Lax';
   document.cookie = 'naraya_user=; path=/; max-age=0; SameSite=Lax';
+  window.dispatchEvent(new Event('naraya-auth-changed'));
 }
 
 export function AuthMenu() {
@@ -45,13 +42,10 @@ export function AuthMenu() {
   }, [pathname]);
 
   async function logout() {
-    const token = decodeURIComponent(readCookie('naraya_session'));
-    if (token) {
-      await fetch(`${apiBaseURL()}/auth/logout`, {
-        method: 'POST',
-        headers: { 'X-Naraya-Session': token },
-      }).catch(() => undefined);
-    }
+    await fetch(apiURL('/auth/logout'), {
+      method: 'POST',
+      credentials: apiCredentials(),
+    }).catch(() => undefined);
     clearSession();
     setName('');
     router.push('/login');
@@ -108,14 +102,15 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         };
 
     try {
-      const response = await fetch(`${apiBaseURL()}/auth/${mode === 'login' ? 'login' : 'register'}`, {
+      const response = await fetch(apiURL(`/auth/${mode === 'login' ? 'login' : 'register'}`), {
         method: 'POST',
+        credentials: apiCredentials(),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error('Request gagal');
-      const auth = await response.json() as { token: string; user: AuthUser };
-      writeSession(auth.token, auth.user);
+      const auth = await response.json() as { user: AuthUser };
+      writeSession(auth.user);
       router.push('/profile');
       router.refresh();
     } catch {
@@ -127,11 +122,11 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   return (
     <form onSubmit={submit} className="relative grid gap-5 overflow-hidden rounded-[2rem] bg-surface-container/88 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl md:p-7">
       <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-primary/12 blur-3xl" />
-      <div className="relative mb-5 flex items-start justify-between gap-4">
-        <div>
+      <div className="relative mb-5 flex min-w-0 items-start justify-between gap-4">
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">{mode === 'login' ? 'Akses pembaca' : 'Identitas baru'}</p>
-          <h2 className="mt-1 font-display text-2xl font-bold">{mode === 'login' ? 'Masuk akun' : 'Buat akun'}</h2>
-          <p className="mt-2 text-sm leading-6 text-on-surface-variant">
+          <h2 className="mt-1 break-words font-display text-2xl font-bold">{mode === 'login' ? 'Masuk akun' : 'Buat akun'}</h2>
+          <p className="mt-2 break-words text-sm leading-6 text-on-surface-variant">
             {mode === 'login' ? 'Lanjutkan rak dan chapter terakhir dari akunmu.' : 'Simpan rak, komentar, dan preferensi baca dalam satu profil.'}
           </p>
         </div>

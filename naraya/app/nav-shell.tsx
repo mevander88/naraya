@@ -1,10 +1,11 @@
 'use client';
 
-import { ArrowLeft, Bell, BookOpen, Compass, Home, Library, Search, Settings, User } from 'lucide-react';
+import { ArrowLeft, Bell, BookOpen, Compass, Home, Library, Maximize2, Minimize2, Search, Settings, User } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { AuthMenu } from './auth-client';
+import { apiOrigin, apiURL } from './lib/client-api';
 
 type SearchResult = {
   slug: string;
@@ -16,20 +17,11 @@ type SearchResult = {
   kind?: string;
 };
 
-function apiBaseURL() {
-  return process.env.NEXT_PUBLIC_NARAYA_API_URL ?? (process.env.NODE_ENV === 'production' ? 'https://naraya.biz.id/api' : 'http://127.0.0.1:4000/api');
-}
-
-function apiOrigin() {
-  return apiBaseURL().replace(/\/api\/?$/, '');
-}
-
 const mobileItems = [
   { href: '/', icon: Home, label: 'Home' },
   { href: '/komik', icon: BookOpen, label: 'Indeks' },
   { href: '/explore', icon: Compass, label: 'Explore' },
   { href: '/library', icon: Library, label: 'Rak' },
-  { href: '/login', icon: User, label: 'Login' },
 ];
 
 const desktopItems = [
@@ -42,17 +34,42 @@ const desktopItems = [
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
+function readCookie(name: string) {
+  if (typeof document === 'undefined') return '';
+  return document.cookie
+    .split('; ')
+    .find((row) => row.startsWith(`${name}=`))
+    ?.split('=')[1] ?? '';
+}
+
 export function NavShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [authName, setAuthName] = useState('');
   const [showTopbar, setShowTopbar] = useState(false);
   const [readerChromeVisible, setReaderChromeVisible] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchState, setSearchState] = useState<'idle' | 'waiting' | 'loading' | 'done' | 'error'>('idle');
   const [readerBack, setReaderBack] = useState<{ href: string; label: string } | null>(null);
+  const [fullscreenActive, setFullscreenActive] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
   const topbarRef = useRef(false);
   const scrollFrameRef = useRef<number | null>(null);
   const isReaderRoute = pathname.startsWith('/baca/') || pathname.startsWith('/nonton/');
+
+  useEffect(() => {
+    function syncAuth() {
+      setAuthName(decodeURIComponent(readCookie('naraya_user')));
+    }
+
+    syncAuth();
+    window.addEventListener('focus', syncAuth);
+    window.addEventListener('naraya-auth-changed', syncAuth);
+    return () => {
+      window.removeEventListener('focus', syncAuth);
+      window.removeEventListener('naraya-auth-changed', syncAuth);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     setReaderChromeVisible(true);
@@ -79,6 +96,19 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 
     window.addEventListener('naraya-reader-back', handleReaderBack);
     return () => window.removeEventListener('naraya-reader-back', handleReaderBack);
+  }, []);
+
+  useEffect(() => {
+    const supported = Boolean(document.documentElement.requestFullscreen) && Boolean(document.exitFullscreen);
+    setFullscreenSupported(supported);
+
+    function syncFullscreen() {
+      setFullscreenActive(Boolean(document.fullscreenElement));
+    }
+
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
   }, []);
 
   useEffect(() => {
@@ -118,7 +148,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
     const timer = window.setTimeout(async () => {
       setSearchState('loading');
       try {
-        const response = await fetch(`${apiBaseURL()}/search?q=${encodeURIComponent(query)}`, {
+        const response = await fetch(apiURL(`/search?q=${encodeURIComponent(query)}`), {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error('search failed');
@@ -143,19 +173,34 @@ export function NavShell({ children }: { children: React.ReactNode }) {
     event.preventDefault();
   }
 
+  async function toggleFullscreen() {
+    if (!fullscreenSupported) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      setFullscreenActive(Boolean(document.fullscreenElement));
+    }
+  }
+
   const activeTitle = desktopItems.find((item) => (item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)))?.label ?? 'Home';
   const chromeHidden = isReaderRoute && !readerChromeVisible;
   const isHomeRoute = pathname === '/';
   const isAuthRoute = pathname === '/login' || pathname === '/register';
   const showFooter = !pathname.startsWith('/nonton/');
   const topbarVisible = isReaderRoute ? readerChromeVisible : isHomeRoute ? showTopbar : true;
+  const mobileAuthItem = authName ? { href: '/profile', icon: User, label: 'Profile' } : { href: '/login', icon: User, label: 'Login' };
+  const bottomItems = [...mobileItems, mobileAuthItem];
 
   if (isAuthRoute) {
     return <main className="min-h-screen">{children}</main>;
   }
 
   return (
-      <main className={`min-h-screen ${chromeHidden ? 'pb-0 md:pl-0' : 'pb-24 md:pb-0 md:pl-20'}`}>
+      <main className={`flex min-h-screen flex-col ${chromeHidden ? 'pb-0 md:pl-0' : 'pb-24 md:pb-0 md:pl-20'}`}>
       <header
         className={`fixed left-0 top-0 z-50 flex w-full items-center justify-between border-b px-container-mobile py-4 transition duration-300 md:left-20 md:w-[calc(100%-5rem)] md:px-container-desktop ${
           topbarVisible && !chromeHidden
@@ -163,10 +208,10 @@ export function NavShell({ children }: { children: React.ReactNode }) {
             : 'pointer-events-none -translate-y-5 border-transparent bg-transparent opacity-0'
         }`}
       >
-        <div className="flex items-center gap-4">
-          <Link href="/" prefetch={false} className="flex items-center gap-3 font-display text-3xl font-bold text-primary">
+        <div className="flex min-w-0 items-center gap-4">
+          <Link href="/" className="flex min-w-0 items-center gap-3 font-display text-3xl font-bold text-primary">
             <img src="/logo.svg" alt="" width={36} height={36} className="h-9 w-9" />
-            Naraya
+            <span className="truncate">Naraya</span>
           </Link>
           <span className="hidden rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-on-surface-variant md:inline-flex">
             {activeTitle}
@@ -225,23 +270,30 @@ export function NavShell({ children }: { children: React.ReactNode }) {
             </div>
           ) : null}
         </form>
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-3">
           <AuthMenu />
-          <Link href="/explore" prefetch={false} className="rounded-lg p-2 text-on-surface-variant transition hover:bg-white/5 hover:text-primary md:hidden" aria-label="Search">
+          <Link href="/explore" className="rounded-lg p-2 text-on-surface-variant transition hover:bg-white/5 hover:text-primary md:hidden" aria-label="Search">
             <Search size={22} />
           </Link>
-          <Link href="/profile" prefetch={false} className="h-9 w-9 overflow-hidden rounded-full border border-primary/25 bg-surface-container-high" aria-label="Open profile">
-            <img src="/logo.svg" alt="Profil pembaca Naraya" width={36} height={36} decoding="async" className="h-full w-full object-cover" />
-          </Link>
+          <button
+            type="button"
+            onClick={() => void toggleFullscreen()}
+            disabled={!fullscreenSupported}
+            className="grid h-9 w-9 place-items-center rounded-full border border-primary/25 bg-surface-container-high text-primary transition hover:border-primary/50 hover:bg-primary/12 disabled:cursor-not-allowed disabled:opacity-45"
+            aria-label={fullscreenActive ? 'Keluar fullscreen' : 'Masuk fullscreen'}
+            title={fullscreenActive ? 'Keluar fullscreen' : 'Masuk fullscreen'}
+          >
+            {fullscreenActive ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
         </div>
       </header>
 
       <aside className={`fixed left-0 top-0 z-50 hidden h-full w-20 flex-col items-center border-r border-transparent bg-surface-container-low py-8 transition duration-300 md:flex ${chromeHidden ? 'pointer-events-none -translate-x-full opacity-0' : 'translate-x-0 opacity-100'}`}>
-        <Link href="/" prefetch={false} className="mb-12 rounded-xl p-2 transition hover:bg-white/5" aria-label="Open home">
+        <Link href="/" className="mb-12 rounded-xl p-2 transition hover:bg-white/5" aria-label="Open home">
           <img src="/logo.svg" alt="Naraya" width={40} height={40} decoding="async" className="h-10 w-10" />
         </Link>
         {readerBack ? (
-          <Link href={readerBack.href} prefetch={false} className="mb-5 rounded-xl bg-primary p-3 text-on-primary shadow-glow transition hover:brightness-110" aria-label={readerBack.label} title={readerBack.label}>
+          <Link href={readerBack.href} className="mb-5 rounded-xl bg-primary p-3 text-on-primary shadow-glow transition hover:brightness-110" aria-label={readerBack.label} title={readerBack.label}>
             <ArrowLeft size={24} />
           </Link>
         ) : null}
@@ -252,7 +304,6 @@ export function NavShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={href}
                 href={href}
-                prefetch={false}
                 className={`rounded-xl p-3 transition ${active ? 'bg-primary text-on-primary shadow-glow' : 'text-on-surface-variant hover:bg-white/5 hover:text-primary'}`}
                 aria-label={label}
                 title={label}
@@ -264,7 +315,9 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {children}
+      <div className="flex-1">
+        {children}
+      </div>
 
       {showFooter ? (
         <footer className="relative mt-12 overflow-hidden px-container-mobile pb-28 pt-14 md:px-container-desktop md:pb-12">
@@ -272,9 +325,9 @@ export function NavShell({ children }: { children: React.ReactNode }) {
           <div className="pointer-events-none absolute -right-24 top-8 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
           <div className="relative rounded-[2rem] bg-surface-container-low/42 p-5 md:p-6">
             <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <Link href="/" prefetch={false} className="inline-flex items-center gap-3">
+              <Link href="/" className="inline-flex min-w-0 items-center gap-3">
                 <img src="/logo.svg" alt="" width={40} height={40} decoding="async" className="h-10 w-10" />
-                <span>
+                <span className="min-w-0">
                   <span className="block font-display text-2xl font-bold text-on-background">Naraya</span>
                   <span className="block text-sm font-medium text-on-surface-variant">Baca komik dan nonton anime tanpa distraksi.</span>
                 </span>
@@ -282,16 +335,16 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 
               <div className="flex flex-col gap-4 md:items-end">
                 <div className="flex flex-wrap gap-3">
-                  <Link href="/komik" prefetch={false} className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Indeks</Link>
-                  <Link href="/explore" prefetch={false} className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Explore</Link>
-                  <Link href="/library" prefetch={false} className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Rak</Link>
-                  <Link href="/login" prefetch={false} className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Login</Link>
+                  <Link href="/komik" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Indeks</Link>
+                  <Link href="/explore" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Explore</Link>
+                  <Link href="/library" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Rak</Link>
+                  <Link href="/login" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Login</Link>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                <Link href="/explore" prefetch={false} className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
+                <Link href="/explore" className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
                   Mulai jelajah
                 </Link>
-                <Link href="/komik" prefetch={false} className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
+                <Link href="/komik" className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
                   Indeks
                 </Link>
                 </div>
@@ -305,19 +358,19 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         </footer>
       ) : null}
 
-      <nav className={`fixed bottom-0 left-0 z-50 flex h-16 w-full items-center justify-around border-t border-transparent bg-[#121019]/95 shadow-[0_-18px_45px_rgba(0,0,0,0.42)] backdrop-blur-2xl transition duration-300 md:hidden ${chromeHidden ? 'pointer-events-none translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
+      <nav className={`fixed bottom-0 left-0 z-50 flex h-16 w-full items-stretch justify-around border-t border-transparent bg-[#121019]/95 shadow-[0_-18px_45px_rgba(0,0,0,0.42)] backdrop-blur-2xl transition duration-300 md:hidden ${chromeHidden ? 'pointer-events-none translate-y-full opacity-0' : 'translate-y-0 opacity-100'}`}>
         {readerBack ? (
-          <Link href={readerBack.href} prefetch={false} className="flex min-w-16 flex-col items-center justify-center gap-0.5 text-xs font-semibold text-primary">
+          <Link href={readerBack.href} className="flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-xs font-semibold text-primary">
             <ArrowLeft size={22} />
-            Kembali
+            <span className="max-w-full truncate">Kembali</span>
           </Link>
         ) : null}
-        {mobileItems.map(({ href, icon: Icon, label }) => {
+        {bottomItems.map(({ href, icon: Icon, label }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
-            <Link key={href} href={href} prefetch={false} className={`flex min-w-16 flex-col items-center justify-center gap-0.5 text-xs font-semibold transition ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
+            <Link key={href} href={href} className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-xs font-semibold transition ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
               <Icon size={22} />
-              {label}
+              <span className="max-w-full truncate">{label}</span>
             </Link>
           );
         })}

@@ -13,16 +13,25 @@
 }
 
 html {
+  max-width: 100%;
   scroll-behavior: auto;
 }
 
 body {
+  max-width: 100%;
   min-height: 100dvh;
   overflow-x: hidden;
   background:
     radial-gradient(circle at 72% 6%, rgba(208, 188, 255, 0.14), transparent 26rem),
     linear-gradient(180deg, #15121b 0%, #0f0d15 100%);
   -webkit-font-smoothing: antialiased;
+}
+
+main,
+img,
+video,
+iframe {
+  max-width: 100%;
 }
 
 @layer components {
@@ -47,6 +56,31 @@ body {
 
   .reveal-soft {
     animation: reveal-soft 420ms var(--ease-out-quart) both;
+    will-change: opacity, transform;
+  }
+
+  .scroll-reveal {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+    transition:
+      opacity 520ms var(--ease-out-quart),
+      transform 520ms var(--ease-out-quart);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+
+  .scroll-reveal.is-visible {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  .hero-backdrop {
+    animation: hero-kenburns 760ms var(--ease-out-quart) both;
+    transform: translate3d(0, var(--hero-shift, 0px), 0) scale(1);
+    will-change: opacity, transform;
+  }
+
+  .hero-copy-motion {
+    animation: hero-copy 520ms var(--ease-out-quart) both;
     will-change: opacity, transform;
   }
 
@@ -79,6 +113,18 @@ body {
   .image-render-safe {
     background-color: rgba(255, 255, 255, 0.04);
   }
+
+  .naraya-player-frame,
+  .naraya-video-surface {
+    contain: layout paint style;
+    isolation: isolate;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  .naraya-player-controls {
+    contain: layout paint;
+  }
 }
 
 @keyframes reveal-up {
@@ -97,8 +143,8 @@ body {
 }
 
 @keyframes hero-kenburns {
-  from { opacity: 0; transform: scale(1.018); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translate3d(0, var(--hero-shift, 0px), 0) scale(1.026); }
+  to { opacity: 1; transform: translate3d(0, var(--hero-shift, 0px), 0) scale(1); }
 }
 
 @keyframes hero-copy {
@@ -114,5 +160,65 @@ body {
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .scroll-reveal {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  html,
+  body,
+  main {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  .scroll-reveal {
+    transform: translate3d(0, 10px, 0);
+    transition-duration: 300ms;
+  }
+
+  .hero-backdrop {
+    animation-duration: 360ms;
+    transform: none !important;
+    will-change: opacity;
+  }
+
+  .hero-copy-motion {
+    animation-duration: 320ms;
+    will-change: opacity, transform;
+  }
+
+  .watch-video-panel,
+  .naraya-player-frame {
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.26) !important;
+  }
+
+  .watch-video-glow {
+    display: none;
+  }
+
+  .naraya-video-surface {
+    background: linear-gradient(145deg, #100d17, #020203) !important;
+  }
+
+  .naraya-player-loading {
+    background: rgba(7, 5, 10, 0.84) !important;
+  }
+
+  .naraya-loading-ping {
+    animation: none !important;
+    opacity: 0.5;
+  }
+
+  .naraya-video-surface .backdrop-blur,
+  .naraya-video-surface .backdrop-blur-md,
+  .naraya-video-surface .backdrop-blur-xl {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
 }

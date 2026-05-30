@@ -32,7 +32,7 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
   return (
     <section className="px-container-mobile pt-28 md:px-container-desktop">
       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Rak Bacaan</p>
-      <h2 className="mt-2 font-display text-4xl font-bold">Rak bacaanmu</h2>
+      <h2 className="mt-2 break-words font-display text-4xl font-bold">Rak bacaanmu</h2>
       <p className="mt-3 max-w-2xl text-on-surface-variant">
         Bookmark, progress baca, dan status rak bacaan disimpan aman di akun Naraya.
       </p>
@@ -56,25 +56,27 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
 
       <div className="mt-9 grid gap-4 md:gap-5">
         {visibleItems.map((item) => (
-          <article key={item.id} className="glass-panel interactive-lift reveal-soft flex gap-4 rounded-2xl p-4 md:items-center md:p-5">
+          <Link
+            key={item.id}
+            href={itemHref(item)}
+            className="glass-panel interactive-lift reveal-soft group flex min-w-0 gap-4 rounded-2xl p-4 transition hover:border-primary/40 md:items-center md:p-5"
+            aria-label={`${item.contentKind === 'series' ? 'Buka anime' : 'Buka komik'} ${item.comicTitle}`}
+          >
             <img src={item.coverUrl} alt={item.comicTitle} width={80} height={112} loading="lazy" decoding="async" className="h-28 w-20 rounded-xl object-cover" />
             <div className="min-w-0 flex-1">
               <div className="mb-2 inline-flex rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
                 {itemKind(item)}
               </div>
               <h3 className="truncate text-xl font-semibold">{item.comicTitle}</h3>
-              <p className="mt-1 text-sm text-on-surface-variant">{item.lastChapterTitle || item.latestChapterSlug || (item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca')} - progress {item.progressPercent}%</p>
+              <p className="mt-1 break-words text-sm text-on-surface-variant">{item.lastChapterTitle || item.latestChapterSlug || (item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca')} - progress {item.progressPercent}%</p>
               <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div className="h-full rounded-full bg-primary" style={{ width: `${item.progressPercent}%` }} />
               </div>
             </div>
-            <Link
-              href={itemHref(item)}
-              className="hidden rounded-xl border border-white/10 px-5 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 md:block"
-            >
+            <span className="hidden rounded-xl border border-white/10 px-5 py-3 font-semibold text-primary transition group-hover:border-primary/50 group-hover:bg-primary/10 md:block">
               {item.contentKind === 'series' ? 'Tonton' : 'Lanjut'}
-            </Link>
-          </article>
+            </span>
+          </Link>
         ))}
         {library.length && !visibleItems.length ? (
           <div className="glass-panel rounded-2xl p-6 text-on-surface-variant">
@@ -88,7 +90,7 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
             <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
               {suggestions.slice(0, 4).map((comic) => (
                 <article key={comic.slug} className="interactive-lift">
-                  <img src={comic.image} alt={comic.title} width={180} height={270} loading="lazy" decoding="async" className="aspect-[2/3] rounded-xl object-cover" />
+                  <img src={comic.image} alt={comic.title} width={180} height={270} loading="lazy" decoding="async" className="aspect-[2/3] w-full rounded-xl object-cover" />
                   <h4 className="mt-2 truncate font-semibold">{comic.title}</h4>
                   <p className="text-xs text-on-surface-variant">{comic.episode}</p>
                 </article>

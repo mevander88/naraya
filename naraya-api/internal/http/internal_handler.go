@@ -1,14 +1,15 @@
 package http
 
 import (
+	"encoding/base64"
+	"net/url"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"naraya-api/internal/model"
+	"naraya-api/internal/proxytoken"
 	"naraya-api/internal/store"
 )
-
-const defaultUserID = "00000000-0000-0000-0000-000000000001"
 
 type InternalHandler struct {
 	store *store.Store
@@ -16,24 +17,6 @@ type InternalHandler struct {
 
 func NewInternalHandler(store *store.Store) *InternalHandler {
 	return &InternalHandler{store: store}
-}
-
-func (h *InternalHandler) CreateUser(c *fiber.Ctx) error {
-	var req model.CreateUserRequest
-	if err := c.BodyParser(&req); err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "invalid user payload")
-	}
-	if strings.TrimSpace(req.Username) == "" || strings.TrimSpace(req.DisplayName) == "" {
-		return fiber.NewError(fiber.StatusBadRequest, "username and displayName are required")
-	}
-	if strings.TrimSpace(req.Email) == "" || len(req.Password) < 8 {
-		return fiber.NewError(fiber.StatusBadRequest, "email and password with at least 8 characters are required")
-	}
-	user, err := h.store.CreateUser(c.UserContext(), req)
-	if err != nil {
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
-	}
-	return c.Status(fiber.StatusCreated).JSON(user)
 }
 
 func (h *InternalHandler) Register(c *fiber.Ctx) error {
@@ -55,6 +38,7 @@ func (h *InternalHandler) Register(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
+	setSessionCookies(c, auth)
 	return c.Status(fiber.StatusCreated).JSON(auth)
 }
 
@@ -70,6 +54,7 @@ func (h *InternalHandler) Login(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnauthorized, "invalid credentials")
 	}
+	setSessionCookies(c, auth)
 	return c.JSON(auth)
 }
 
@@ -81,6 +66,7 @@ func (h *InternalHandler) Logout(c *fiber.Ctx) error {
 	if err := h.store.RevokeSession(c.UserContext(), token); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
+	clearSessionCookies(c)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
@@ -112,32 +98,24 @@ func (h *InternalHandler) UpdateSettings(c *fiber.Ctx) error {
 	return c.JSON(settings)
 }
 
-func (h *InternalHandler) GetUser(c *fiber.Ctx) error {
-	user, err := h.store.GetUser(c.UserContext(), c.Params("id"))
+func (h *InternalHandler) Me(c *fiber.Ctx) error {
+	user, err := h.currentUser(c)
 	if err != nil {
-		if store.IsNotFound(err) {
-			return fiber.NewError(fiber.StatusNotFound, "user not found")
-		}
-		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+		return err
 	}
 	return c.JSON(user)
 }
 
-func (h *InternalHandler) Me(c *fiber.Ctx) error {
-	if token := sessionToken(c); token != "" {
-		user, err := h.store.UserBySession(c.UserContext(), token)
-		if err == nil {
-			return c.JSON(user)
-		}
-	}
-	user, err := h.store.GetUser(c.UserContext(), fallbackUserID(c))
+func (h *InternalHandler) UserStats(c *fiber.Ctx) error {
+	id, err := h.resolvedUserID(c)
 	if err != nil {
-		if store.IsNotFound(err) {
-			return fiber.NewError(fiber.StatusNotFound, "user not found")
-		}
+		return err
+	}
+	stats, err := h.store.UserStats(c.UserContext(), id)
+	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
-	return c.JSON(user)
+	return c.JSON(stats)
 }
 
 func (h *InternalHandler) ListLibrary(c *fiber.Ctx) error {
@@ -149,6 +127,7 @@ func (h *InternalHandler) ListLibrary(c *fiber.Ctx) error {
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
+	normalizeLibraryItems(items)
 	return c.JSON(fiber.Map{"items": items})
 }
 
@@ -157,21 +136,103 @@ func (h *InternalHandler) UpsertLibrary(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid library payload")
 	}
-	if strings.TrimSpace(req.UserID) == "" {
-		id, err := h.resolvedUserID(c)
-		if err != nil {
-			return err
-		}
-		req.UserID = id
+	id, err := h.resolvedUserID(c)
+	if err != nil {
+		return err
 	}
+	req.UserID = id
 	if strings.TrimSpace(req.ComicSlug) == "" || strings.TrimSpace(req.ComicTitle) == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "comicSlug and comicTitle are required")
 	}
+	req.CoverURL = normalizeLibraryMediaURL(req.CoverURL)
+	req.ProgressPercent = clampProgress(req.ProgressPercent)
 	item, err := h.store.UpsertLibrary(c.UserContext(), req)
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
+	item.CoverURL = normalizeLibraryMediaURL(item.CoverURL)
 	return c.JSON(item)
+}
+
+func clampProgress(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 100 {
+		return 100
+	}
+	return value
+}
+
+func normalizeLibraryItems(items []model.LibraryItem) {
+	for i := range items {
+		items[i].CoverURL = normalizeLibraryMediaURL(items[i].CoverURL)
+		items[i].ProgressPercent = clampProgress(items[i].ProgressPercent)
+	}
+}
+
+func normalizeLibraryMediaURL(value string) string {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return ""
+	}
+	token, ok := imageProxyToken(raw)
+	if !ok {
+		return raw
+	}
+	if !strings.Contains(token, ".") {
+		return "/api/images/" + token
+	}
+	target, ok := legacyImageTarget(token)
+	if !ok || !allowedLegacyImageTarget(target) {
+		return raw
+	}
+	return "/api/images/" + proxytoken.EncodeWithScope("public-image", target)
+}
+
+func imageProxyToken(value string) (string, bool) {
+	const imagePrefix = "/api/images/"
+	if strings.HasPrefix(value, imagePrefix) {
+		return strings.Trim(strings.TrimPrefix(value, imagePrefix), "/"), true
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Path == "" || !strings.HasPrefix(parsed.Path, imagePrefix) {
+		return "", false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	if host != "naraya.biz.id" && host != "127.0.0.1" && host != "localhost" {
+		return "", false
+	}
+	return strings.Trim(strings.TrimPrefix(parsed.Path, imagePrefix), "/"), true
+}
+
+func legacyImageTarget(token string) (string, bool) {
+	payload, _, ok := strings.Cut(token, ".")
+	if !ok || payload == "" {
+		return "", false
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(payload)
+	if err != nil {
+		return "", false
+	}
+	return strings.TrimSpace(string(decoded)), true
+}
+
+func allowedLegacyImageTarget(target string) bool {
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "https" && scheme != "http" {
+		return false
+	}
+	host := strings.ToLower(parsed.Hostname())
+	return host == "mynimeku.com" ||
+		host == "www.mynimeku.com" ||
+		strings.HasSuffix(host, ".mynimeku.com") ||
+		host == "image.mydriveku.my.id" ||
+		strings.HasSuffix(host, ".mydriveku.my.id")
 }
 
 func (h *InternalHandler) DeleteLibrary(c *fiber.Ctx) error {
@@ -185,17 +246,70 @@ func (h *InternalHandler) DeleteLibrary(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusNoContent)
 }
 
+func (h *InternalHandler) LoveStatus(c *fiber.Ctx) error {
+	targetSlug := strings.TrimSpace(c.Params("targetSlug"))
+	status, err := h.store.LoveStatus(c.UserContext(), h.optionalUserID(c), targetSlug)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(status)
+}
+
+func (h *InternalHandler) ListMyLoves(c *fiber.Ctx) error {
+	id, err := h.resolvedUserID(c)
+	if err != nil {
+		return err
+	}
+	items, err := h.store.ListUserLoves(c.UserContext(), id)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(fiber.Map{"items": items})
+}
+
+func (h *InternalHandler) CreateLove(c *fiber.Ctx) error {
+	var req model.CreateLoveRequest
+	if err := c.BodyParser(&req); err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, "invalid love payload")
+	}
+	id, err := h.resolvedUserID(c)
+	if err != nil {
+		return err
+	}
+	req.UserID = id
+	if strings.TrimSpace(req.TargetSlug) == "" || strings.TrimSpace(req.TargetTitle) == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "targetSlug and targetTitle are required")
+	}
+	status, err := h.store.CreateLove(c.UserContext(), req)
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.Status(fiber.StatusCreated).JSON(status)
+}
+
 func (h *InternalHandler) ListComments(c *fiber.Ctx) error {
 	comicSlug := strings.TrimSpace(c.Query("comicSlug"))
 	chapterSlug := strings.TrimSpace(c.Query("chapterSlug"))
 	if comicSlug == "" && chapterSlug == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "comicSlug or chapterSlug query is required")
 	}
-	comments, err := h.store.ListComments(c.UserContext(), comicSlug, chapterSlug)
+	comments, err := h.store.ListComments(c.UserContext(), comicSlug, chapterSlug, commentLimit(c), strings.TrimSpace(c.Query("cursor")))
 	if err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, err.Error())
 	}
-	return c.JSON(fiber.Map{"items": comments})
+	return c.JSON(comments)
+}
+
+func (h *InternalHandler) ListMyComments(c *fiber.Ctx) error {
+	id, err := h.resolvedUserID(c)
+	if err != nil {
+		return err
+	}
+	comments, err := h.store.ListUserComments(c.UserContext(), id, commentLimit(c), strings.TrimSpace(c.Query("cursor")))
+	if err != nil {
+		return fiber.NewError(fiber.StatusBadRequest, err.Error())
+	}
+	return c.JSON(comments)
 }
 
 func (h *InternalHandler) CreateComment(c *fiber.Ctx) error {
@@ -203,18 +317,16 @@ func (h *InternalHandler) CreateComment(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid comment payload")
 	}
-	if strings.TrimSpace(req.UserID) == "" {
-		id, err := h.resolvedUserID(c)
-		if err != nil {
-			return err
-		}
-		req.UserID = id
+	id, err := h.resolvedUserID(c)
+	if err != nil {
+		return err
 	}
+	req.UserID = id
 	if strings.TrimSpace(req.Body) == "" {
 		return fiber.NewError(fiber.StatusBadRequest, "body is required")
 	}
-	if strings.TrimSpace(req.ComicSlug) == "" && strings.TrimSpace(req.ChapterSlug) == "" {
-		return fiber.NewError(fiber.StatusBadRequest, "comicSlug or chapterSlug is required")
+	if strings.TrimSpace(req.ComicSlug) == "" && strings.TrimSpace(req.ChapterSlug) == "" && strings.TrimSpace(req.ParentID) == "" {
+		return fiber.NewError(fiber.StatusBadRequest, "comicSlug, chapterSlug, or parentId is required")
 	}
 	comment, err := h.store.CreateComment(c.UserContext(), req)
 	if err != nil {
@@ -223,43 +335,13 @@ func (h *InternalHandler) CreateComment(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(comment)
 }
 
-func (h *InternalHandler) resolvedUserID(c *fiber.Ctx) (string, error) {
-	if token := sessionToken(c); token != "" {
-		user, err := h.store.UserBySession(c.UserContext(), token)
-		if err == nil {
-			return user.ID, nil
-		}
+func commentLimit(c *fiber.Ctx) int {
+	limit := c.QueryInt("limit", 10)
+	if limit < 1 {
+		return 10
 	}
-	id := fallbackUserID(c)
-	if id == defaultUserID && sessionToken(c) == "" {
-		return id, nil
+	if limit > 50 {
+		return 50
 	}
-	if strings.TrimSpace(id) == "" {
-		return "", fiber.NewError(fiber.StatusUnauthorized, "login is required")
-	}
-	return id, nil
-}
-
-func fallbackUserID(c *fiber.Ctx) string {
-	if value := strings.TrimSpace(c.Get("X-Naraya-User-ID")); value != "" {
-		return value
-	}
-	if value := strings.TrimSpace(c.Query("userId")); value != "" {
-		return value
-	}
-	return defaultUserID
-}
-
-func sessionToken(c *fiber.Ctx) string {
-	if value := strings.TrimSpace(c.Get("X-Naraya-Session")); value != "" {
-		return value
-	}
-	auth := strings.TrimSpace(c.Get("Authorization"))
-	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
-		return strings.TrimSpace(auth[7:])
-	}
-	if value := strings.TrimSpace(c.Query("session")); value != "" {
-		return value
-	}
-	return ""
+	return limit
 }

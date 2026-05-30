@@ -4,6 +4,7 @@ import { LoaderCircle } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ComicCard } from '../components';
 import type { CatalogItem } from '../data';
+import { apiURL, mediaURL } from '../lib/client-api';
 
 type InfiniteExploreResultsProps = {
   initialItems: CatalogItem[];
@@ -16,19 +17,6 @@ type InfiniteExploreResultsProps = {
     query: string;
   };
 };
-
-function apiBaseURL() {
-  return process.env.NEXT_PUBLIC_NARAYA_API_URL ?? (process.env.NODE_ENV === 'production' ? 'https://naraya.biz.id/api' : 'http://127.0.0.1:4000/api');
-}
-
-function apiOrigin() {
-  return apiBaseURL().replace(/\/api\/?$/, '');
-}
-
-function mediaURL(value?: string) {
-  if (!value) return value;
-  return value.startsWith('/api/') ? `${apiOrigin()}${value}` : value;
-}
 
 export function InfiniteExploreResults({ initialItems, initialPage, totalPages, filters }: InfiniteExploreResultsProps) {
   const [items, setItems] = useState(initialItems);
@@ -74,7 +62,7 @@ export function InfiniteExploreResults({ initialItems, initialPage, totalPages, 
       requestedPagesRef.current.add(nextPage);
       setLoading(true);
       try {
-        const response = await fetch(`${apiBaseURL()}/comics/catalog?${query.toString()}`);
+        const response = await fetch(apiURL(`/comics/catalog?${query.toString()}`));
         if (response.ok) {
           const payload = (await response.json()) as { items?: CatalogItem[] };
           setItems((current) => [...current, ...(payload.items ?? []).map((item) => ({ ...item, cover: mediaURL(item.cover), description: '' }))]);
@@ -102,6 +90,7 @@ export function InfiniteExploreResults({ initialItems, initialPage, totalPages, 
               image: item.cover || '/logo.svg',
               meta: [item.type, item.status, ...(item.genres ?? []).slice(0, 2)].filter(Boolean).join(' - '),
               kind: item.kind,
+              latestChapterSlug: item.latestChapterSlug,
               episode: (item.genres ?? []).slice(0, 3).join(' - ') || (item.kind === 'series' ? 'Buka detail untuk daftar episode.' : 'Buka detail untuk daftar chapter.'),
             }}
           />

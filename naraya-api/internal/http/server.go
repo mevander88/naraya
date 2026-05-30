@@ -28,9 +28,10 @@ func NewServer(cfg config.Config) *fiber.App {
 	app.Use(etag.New())
 	app.Use(compress.New())
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORSOrigins,
-		AllowMethods: "GET,POST,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Origin,Content-Type,Accept,X-Naraya-User-ID,X-Naraya-Session,Authorization",
+		AllowOrigins:     cfg.CORSOrigins,
+		AllowMethods:     "GET,POST,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "Origin,Content-Type,Accept,X-Naraya-Session,Authorization",
+		AllowCredentials: true,
 	}))
 
 	client := scraper.NewClient(cfg.SourceURL, cfg.HTTPTimeout)
@@ -46,7 +47,7 @@ func NewServer(cfg config.Config) *fiber.App {
 	)
 	handler := NewComicHandler(service)
 	var internalHandler *InternalHandler
-	db, err := database.Connect(context.Background(), cfg.DatabaseURL)
+	db, err := database.Connect(context.Background(), cfg.DatabaseURL, cfg.DBMaxConns, cfg.DBMinConns)
 	if err != nil {
 		log.Printf("postgres disabled: %v", err)
 	} else {
@@ -54,10 +55,11 @@ func NewServer(cfg config.Config) *fiber.App {
 	}
 
 	api := app.Group("/api")
+	api.Use(requireWebAccess(cfg))
 	api.Get("/health", handler.Health)
 	api.Get("/images/:token", handler.Image)
 	api.Get("/videos/:token", handler.Video)
-	api.Get("/video-source", handler.VideoSource)
+	api.Get("/video-source/:token", handler.VideoSource)
 	api.Get("/home", handler.Home)
 	api.Get("/navigation", handler.Navigation)
 	api.Get("/sitemap", handler.Sitemap)
@@ -75,21 +77,25 @@ func NewServer(cfg config.Config) *fiber.App {
 		api.Post("/auth/register", internalHandler.Register)
 		api.Post("/auth/login", internalHandler.Login)
 		api.Post("/auth/logout", internalHandler.Logout)
-		api.Post("/users", internalHandler.CreateUser)
-		api.Get("/users/:id", internalHandler.GetUser)
 		api.Get("/me", internalHandler.Me)
+		api.Get("/me/stats", internalHandler.UserStats)
 		api.Get("/library", internalHandler.ListLibrary)
 		api.Post("/library", internalHandler.UpsertLibrary)
 		api.Delete("/library/:comicSlug", internalHandler.DeleteLibrary)
+		api.Get("/loves/me", internalHandler.ListMyLoves)
+		api.Get("/loves/:targetSlug", internalHandler.LoveStatus)
+		api.Post("/loves", internalHandler.CreateLove)
+		api.Get("/comments/me", internalHandler.ListMyComments)
 		api.Get("/comments", internalHandler.ListComments)
 		api.Post("/comments", internalHandler.CreateComment)
 		api.Get("/settings", internalHandler.GetSettings)
 		api.Patch("/settings", internalHandler.UpdateSettings)
 	} else {
 		api.All("/auth*", databaseUnavailable)
-		api.All("/users*", databaseUnavailable)
 		api.All("/me", databaseUnavailable)
+		api.All("/me/*", databaseUnavailable)
 		api.All("/library*", databaseUnavailable)
+		api.All("/loves*", databaseUnavailable)
 		api.All("/comments*", databaseUnavailable)
 		api.All("/settings*", databaseUnavailable)
 	}

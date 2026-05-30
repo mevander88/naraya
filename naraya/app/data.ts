@@ -1,3 +1,5 @@
+import { cookies } from 'next/headers';
+
 export type ComicCardData = {
   slug: string;
   title: string;
@@ -110,6 +112,7 @@ export type CatalogItem = {
   lastMod: string;
   kind: string;
   count?: string;
+  latestChapterSlug?: string;
 };
 
 export type InternalUser = {
@@ -122,12 +125,18 @@ export type InternalUser = {
 };
 
 export type UserSettings = {
-  userId: string;
-  immersiveMode: boolean;
-  autoBookmark: boolean;
-  matureFilter: boolean;
-  highQualityImages: boolean;
-  updatedAt: string;
+	userId: string;
+	autoBookmark: boolean;
+	matureFilter: boolean;
+	highQualityImages: boolean;
+	updatedAt: string;
+};
+
+export type ProfileStats = {
+  libraryTotal: number;
+  completed: number;
+  commentTotal: number;
+  loveTotal: number;
 };
 
 export type LibraryItem = {
@@ -146,6 +155,22 @@ export type LibraryItem = {
   lastReadAt?: string;
 };
 
+export type LoveStatus = {
+  targetSlug: string;
+  count: number;
+  loved: boolean;
+};
+
+export type LoveItem = {
+  id: string;
+  targetSlug: string;
+  targetTitle: string;
+  contentKind: string;
+  coverUrl: string;
+  targetUrl: string;
+  createdAt: string;
+};
+
 export type CommentItem = {
   id: string;
   username: string;
@@ -154,26 +179,19 @@ export type CommentItem = {
   role?: string;
   comicSlug: string;
   chapterSlug: string;
+  parentId?: string;
+  parentUsername?: string;
+  parentDisplayName?: string;
+  parentBody?: string;
   body: string;
   createdAt: string;
 };
 
-const fallbackUser: InternalUser = {
-  id: '00000000-0000-0000-0000-000000000001',
-  username: 'nara_reader',
-  displayName: 'Nara Reader',
-  avatarUrl: '/logo.svg',
-  bio: 'Akun pembaca Naraya.',
-  role: 'reader',
-};
-
-const fallbackSettings: UserSettings = {
-  userId: fallbackUser.id,
-  immersiveMode: true,
-  autoBookmark: true,
-  matureFilter: false,
-  highQualityImages: true,
-  updatedAt: '',
+export type CommentPageData = {
+  items: CommentItem[];
+  nextCursor?: string;
+  hasMore: boolean;
+  total?: number;
 };
 
 function apiBaseURL() {
@@ -183,20 +201,22 @@ function apiBaseURL() {
   return process.env.NODE_ENV === 'production' ? 'https://naraya.biz.id/api' : 'http://127.0.0.1:4000/api';
 }
 
-function apiOrigin() {
-  return apiBaseURL().replace(/\/api\/?$/, '');
-}
-
 function mediaURL(value: string) {
   if (value.startsWith('/api/')) {
-    return `${apiOrigin()}${value}`;
+    return value;
   }
   return value;
 }
 
-function authHeaders(): Record<string, string> {
-  const session = cookies().get('naraya_session')?.value;
-  return session ? { 'X-Naraya-Session': session } : { 'X-Naraya-User-ID': fallbackUser.id };
+function internalHeaders(extra: Record<string, string> = {}) {
+  const token = process.env.NARAYA_INTERNAL_TOKEN;
+  return token ? { ...extra, 'X-Naraya-Internal': token } : extra;
+}
+
+async function authHeaders(): Promise<Record<string, string>> {
+  const cookieStore = await cookies();
+  const session = cookieStore.get('naraya_session')?.value;
+  return internalHeaders(session ? { 'X-Naraya-Session': session } : {});
 }
 
 export function titleFromSlug(slug: string) {
@@ -211,6 +231,7 @@ export async function getLatestComics(page = 1): Promise<ComicCardData[]> {
   try {
     const response = await fetch(`${apiBaseURL()}/comics/latest?page=${page}`, {
       next: { revalidate: 120 },
+      headers: internalHeaders(),
     });
 
     if (!response.ok) {
@@ -242,6 +263,7 @@ export async function getLatestSeries(page = 1): Promise<ComicCardData[]> {
   try {
     const response = await fetch(`${apiBaseURL()}/series/latest?page=${page}`, {
       next: { revalidate: 120 },
+      headers: internalHeaders(),
     });
 
     if (!response.ok) {
@@ -288,6 +310,7 @@ export async function getHomeData(): Promise<{ featured: ComicCardData[]; comics
   try {
     const response = await fetch(`${apiBaseURL()}/home`, {
       next: { revalidate: 120 },
+      headers: internalHeaders(),
     });
     if (!response.ok) {
       return { featured: [], comics: [], series: [], genres: [] };
@@ -312,6 +335,7 @@ export async function getCatalogItems(page = 1, filters: { genre?: string; type?
     if (filters.status && filters.status !== 'All') query.set('status', filters.status);
     const response = await fetch(`${apiBaseURL()}/comics/catalog?${query.toString()}`, {
       next: { revalidate: 3600 },
+      headers: internalHeaders(),
     });
     if (!response.ok) {
       return { page, totalPages: 1, items: [] };
@@ -336,6 +360,7 @@ export async function getAZCatalogItems(page = 1, letter = 'All'): Promise<{ pag
     if (letter && letter !== 'All') query.set('letter', letter);
     const response = await fetch(`${apiBaseURL()}/comics/az?${query.toString()}`, {
       cache: 'no-store',
+      headers: internalHeaders(),
     });
     if (!response.ok) {
       return { page, totalPages: 1, items: [] };
@@ -353,26 +378,41 @@ export async function getAZCatalogItems(page = 1, letter = 'All'): Promise<{ pag
   }
 }
 
-export async function getMe(): Promise<InternalUser> {
+export async function getMe(): Promise<InternalUser | null> {
   try {
     const response = await fetch(`${apiBaseURL()}/me`, {
-      next: { revalidate: 60 },
-      headers: authHeaders(),
+      cache: 'no-store',
+      headers: await authHeaders(),
     });
     if (!response.ok) {
-      return fallbackUser;
+      return null;
     }
     return (await response.json()) as InternalUser;
   } catch {
-    return fallbackUser;
+    return null;
+  }
+}
+
+export async function getProfileStats(): Promise<ProfileStats | null> {
+  try {
+    const response = await fetch(`${apiBaseURL()}/me/stats`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as ProfileStats;
+  } catch {
+    return null;
   }
 }
 
 export async function getLibrary(): Promise<LibraryItem[]> {
   try {
     const response = await fetch(`${apiBaseURL()}/library`, {
-      next: { revalidate: 60 },
-      headers: authHeaders(),
+      cache: 'no-store',
+      headers: await authHeaders(),
     });
     if (!response.ok) {
       return [];
@@ -384,45 +424,112 @@ export async function getLibrary(): Promise<LibraryItem[]> {
   }
 }
 
-export async function getSettings(): Promise<UserSettings> {
+export async function getLoveStatus(targetSlug: string): Promise<LoveStatus> {
   try {
-    const response = await fetch(`${apiBaseURL()}/settings`, {
-      next: { revalidate: 60 },
-      headers: authHeaders(),
+    const response = await fetch(`${apiBaseURL()}/loves/${encodeURIComponent(targetSlug)}`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
     });
     if (!response.ok) {
-      return fallbackSettings;
+      return { targetSlug, count: 0, loved: false };
     }
-    return (await response.json()) as UserSettings;
+    return (await response.json()) as LoveStatus;
   } catch {
-    return fallbackSettings;
+    return { targetSlug, count: 0, loved: false };
   }
 }
 
-export async function getComments(params: { comicSlug?: string; chapterSlug?: string }): Promise<CommentItem[]> {
-  const query = new URLSearchParams();
-  if (params.comicSlug) query.set('comicSlug', params.comicSlug);
-  if (params.chapterSlug) query.set('chapterSlug', params.chapterSlug);
-  if (!query.toString()) return [];
-
+export async function getMyLoves(): Promise<LoveItem[]> {
   try {
-    const response = await fetch(`${apiBaseURL()}/comments?${query.toString()}`, {
-      next: { revalidate: 30 },
+    const response = await fetch(`${apiBaseURL()}/loves/me`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
     });
     if (!response.ok) {
       return [];
     }
-    const payload = (await response.json()) as { items?: CommentItem[] };
+    const payload = (await response.json()) as { items?: LoveItem[] };
     return payload.items ?? [];
   } catch {
     return [];
   }
 }
 
+export async function getSettings(): Promise<UserSettings | null> {
+  try {
+    const response = await fetch(`${apiBaseURL()}/settings`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as UserSettings;
+  } catch {
+    return null;
+  }
+}
+
+export async function getComments(params: { comicSlug?: string; chapterSlug?: string; limit?: number; cursor?: string }): Promise<CommentPageData> {
+  const query = new URLSearchParams();
+  if (params.comicSlug) query.set('comicSlug', params.comicSlug);
+  if (params.chapterSlug) query.set('chapterSlug', params.chapterSlug);
+  query.set('limit', String(params.limit ?? 10));
+  if (params.cursor) query.set('cursor', params.cursor);
+  if (!params.comicSlug && !params.chapterSlug) return emptyCommentPage();
+
+  try {
+    const response = await fetch(`${apiBaseURL()}/comments?${query.toString()}`, {
+      next: { revalidate: 30 },
+      headers: internalHeaders(),
+    });
+    if (!response.ok) {
+      return emptyCommentPage();
+    }
+    const payload = (await response.json()) as Partial<CommentPageData>;
+    return normalizeCommentPage(payload);
+  } catch {
+    return emptyCommentPage();
+  }
+}
+
+export async function getMyComments(params: { limit?: number; cursor?: string } = {}): Promise<CommentPageData> {
+  const query = new URLSearchParams();
+  query.set('limit', String(params.limit ?? 10));
+  if (params.cursor) query.set('cursor', params.cursor);
+  try {
+    const response = await fetch(`${apiBaseURL()}/comments/me?${query.toString()}`, {
+      cache: 'no-store',
+      headers: await authHeaders(),
+    });
+    if (!response.ok) {
+      return emptyCommentPage();
+    }
+    const payload = (await response.json()) as Partial<CommentPageData>;
+    return normalizeCommentPage(payload);
+  } catch {
+    return emptyCommentPage();
+  }
+}
+
+function emptyCommentPage(): CommentPageData {
+  return { items: [], hasMore: false, total: 0 };
+}
+
+function normalizeCommentPage(payload: Partial<CommentPageData>): CommentPageData {
+  return {
+    items: payload.items ?? [],
+    nextCursor: payload.nextCursor || undefined,
+    hasMore: Boolean(payload.hasMore),
+    total: typeof payload.total === 'number' ? payload.total : undefined,
+  };
+}
+
 export async function getComicDetail(slug: string): Promise<ComicDetailData | null> {
   try {
     const response = await fetch(`${apiBaseURL()}/comics/${slug}`, {
       next: { revalidate: 300 },
+      headers: internalHeaders(),
     });
     if (!response.ok) return null;
     const detail = (await response.json()) as ComicDetailData;
@@ -436,6 +543,7 @@ export async function getReader(slug: string): Promise<ReaderData | null> {
   try {
     const response = await fetch(`${apiBaseURL()}/chapters/${slug}`, {
       next: { revalidate: 300 },
+      headers: internalHeaders(),
     });
     if (!response.ok) return null;
     const reader = (await response.json()) as ReaderData;
@@ -449,6 +557,7 @@ export async function getSeriesDetail(slug: string): Promise<SeriesDetailData | 
   try {
     const response = await fetch(`${apiBaseURL()}/series/${slug}`, {
       next: { revalidate: 300 },
+      headers: internalHeaders(),
     });
     if (!response.ok) return null;
     const detail = (await response.json()) as SeriesDetailData;
@@ -462,6 +571,7 @@ export async function getEpisodeReader(slug: string): Promise<EpisodeReaderData 
   try {
     const response = await fetch(`${apiBaseURL()}/episodes/${slug}`, {
       next: { revalidate: 300 },
+      headers: internalHeaders(),
     });
     if (!response.ok) return null;
     const reader = (await response.json()) as EpisodeReaderData;
@@ -483,6 +593,7 @@ export async function getGenresFromApi(): Promise<string[]> {
   try {
     const response = await fetch(`${apiBaseURL()}/genres`, {
       next: { revalidate: 3600 },
+      headers: internalHeaders(),
     });
     if (!response.ok) return [];
     const payload = (await response.json()) as { items?: { slug: string; title?: string }[] };
@@ -497,6 +608,7 @@ export async function getGenreItems(): Promise<CatalogItem[]> {
   try {
     const response = await fetch(`${apiBaseURL()}/genres`, {
       next: { revalidate: 3600 },
+      headers: internalHeaders(),
     });
     if (!response.ok) return [];
     const payload = (await response.json()) as { items?: CatalogItem[] };
@@ -509,7 +621,8 @@ export async function getGenreItems(): Promise<CatalogItem[]> {
 export async function getSitemapCatalogItems(): Promise<CatalogItem[]> {
   try {
     const response = await fetch(`${apiBaseURL()}/sitemap`, {
-      next: { revalidate: 3600 },
+      cache: 'no-store',
+      headers: internalHeaders(),
     });
     if (!response.ok) return [];
     const payload = (await response.json()) as { items?: CatalogItem[] };
@@ -518,4 +631,3 @@ export async function getSitemapCatalogItems(): Promise<CatalogItem[]> {
     return [];
   }
 }
-import { cookies } from 'next/headers';

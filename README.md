@@ -1,10 +1,9 @@
 # Naraya
 
-<p align="center">
-  <img src="./naraya/public/logo.svg" alt="Naraya" width="520" />
-</p>
-
-Naraya adalah platform baca komik dan nonton anime dengan katalog terstruktur, reader gambar, custom video player, rak bacaan, komentar, autentikasi, dan sistem internal berbasis PostgreSQL.
+Naraya adalah aplikasi web untuk membaca komik dan menonton anime. Project ini
+terdiri dari frontend Next.js dan backend Go yang mengambil data katalog dari
+source upstream, menyajikan halaman publik untuk SEO, serta menyediakan fitur
+akun seperti rak, progress, komentar, reply, love, dan settings.
 
 Domain produksi:
 
@@ -12,23 +11,141 @@ Domain produksi:
 https://naraya.biz.id
 ```
 
+## Ringkasan Fitur
+
+Fitur publik:
+
+- Home dengan hero, update komik, update anime, dan genre.
+- Explore dengan pencarian, filter genre, tipe, status, dan infinite loading.
+- Indeks katalog A-Z untuk komik dan anime.
+- Detail komik dengan cover, sinopsis, info, chapter terbaru, love, share, dan komentar.
+- Detail anime dengan cover, sinopsis, info, episode terbaru, love, share, dan komentar.
+- Reader komik di `/baca/[slug]` dengan infinite chapter rendering dan komentar chapter.
+- Player anime di `/nonton/[slug]` dengan custom controls, fullscreen, seek 10 detik, indikator waktu, komentar episode, dan navigasi episode.
+- Halaman 404, robots.txt, sitemap.xml, Open Graph image, dan metadata SEO.
+
+Fitur akun:
+
+- Register, login, logout, dan session cookie.
+- Profile dengan role, settings shortcut mobile, total library, complete, komentar, dan love.
+- Rak/library dengan progress baca/nonton dan akses ke detail item tersimpan.
+- Settings user: auto bookmark, mature filter, dan high quality images.
+- Riwayat komentar dan riwayat love dengan tampilan ringkas dan view all.
+- Komentar, reply komentar, reload komentar, dan pagination/infinite load.
+- Love komik/anime dengan proteksi agar satu user tidak bisa love target yang sama dua kali.
+
+Fitur backend:
+
+- API katalog publik untuk home, search, genres, katalog, detail, reader, episode, dan sitemap.
+- API internal untuk auth, profile, stats, library, settings, comments, replies, dan loves.
+- Query count profile dilakukan di backend, bukan dihitung dari array frontend.
+- Pagination komentar menggunakan cursor.
+- Love count disimpan di tabel counter dengan trigger database.
+- In-memory cache untuk data scraper yang sering dipakai.
+- PostgreSQL connection pool dengan konfigurasi min/max connection.
+
+## Proteksi dan SEO
+
+Naraya memakai beberapa lapisan proteksi agar asset dan API tidak mudah diambil
+langsung, tetapi halaman publik tetap dapat diindeks dengan benar.
+
+Proteksi API:
+
+- Semua route `/api/*` dilindungi oleh web guard, kecuali `/api/health`.
+- Browser Naraya mendapat cookie `naraya_web` dari frontend.
+- Request API browser harus membawa konteks web yang valid.
+- Request internal server-side frontend memakai `NARAYA_INTERNAL_TOKEN`.
+- User-agent scraping umum seperti curl, wget, python-requests, httpx, scrapy,
+  axios, headlesschrome, selenium, playwright, dan sejenisnya ditolak oleh web guard.
+
+Proteksi media:
+
+- Gambar reader memakai token scope protected dan butuh konteks web Naraya.
+- Video dan resolver video memakai token protected dan tidak dibuka untuk crawler.
+- Cover/poster publik memakai token scope `public-image`.
+- `public-image` boleh diakses crawler dan social preview tanpa cookie, termasuk request `HEAD`.
+- Token public image lebih panjang TTL-nya agar aman untuk cache SEO/share.
+- Reader image dan video tetap memakai header privat: `no-store`, `noindex`, dan `same-origin`.
+
+SEO:
+
+- Halaman detail komik/anime memakai cover publik sebagai `og:image` jika tersedia.
+- `sitemap.xml` dibuat runtime dari backend `/api/sitemap` memakai internal token.
+- Sitemap memasukkan home, explore, indeks, detail komik, dan detail anime/series.
+- Halaman privat seperti login, register, profile, library, settings, dan notifications dibuat noindex/disallow.
+- `robots.txt` origin mengizinkan `/api/images/` untuk cover publik, tetapi menolak `/api/` secara umum.
+
+Catatan produksi:
+
+- Cloudflare dapat menambahkan managed content signals di bagian atas `robots.txt`.
+- Jika Cloudflare meng-cache `robots.txt`, origin tetap menjadi sumber kebenaran dan cache edge perlu expired atau dipurge.
+
 ## Struktur Project
 
 ```text
-website/
-  naraya/      Next.js App Router frontend
-  naraya-api/  Go Fiber backend API
+/var/www/naraya
+  README.md
+  deploy/
+    env/
+      naraya-api.env.example
+      naraya-frontend.env.example
+    nginx/
+      naraya.biz.id.conf
+      naraya.biz.id.http.conf
+    systemd/
+      naraya-api.service
+      naraya-frontend.service
+  naraya/
+    app/
+      baca/
+      explore/
+      komik/
+      library/
+      login/
+      nonton/
+      notifications/
+      profile/
+      register/
+      series/
+      settings/
+      data.ts
+      robots.ts
+      sitemap.ts
+    public/
+    next.config.mjs
+    package.json
+  naraya-api/
+    cmd/
+      api/
+      migrate/
+    database/
+      schema.sql
+    internal/
+      config/
+      database/
+      http/
+      model/
+      proxytoken/
+      scraper/
+      store/
+    migrations/
+    go.mod
 ```
+
+Frontend utama berada di `naraya/app`. Backend utama berada di `naraya-api`.
+Folder `deploy` berisi contoh environment, systemd unit, dan nginx reverse proxy
+untuk production.
 
 ## Stack
 
 Frontend:
 
-- Next.js 14 App Router
+- Next.js 16 App Router
 - React 18
-- Tailwind CSS
 - TypeScript
+- Tailwind CSS
 - Lucide React
+- Next.js standalone output untuk production
 
 Backend:
 
@@ -37,144 +154,54 @@ Backend:
 - PostgreSQL
 - pgx
 - goquery
-- In-memory cache
-- Media proxy untuk gambar dan video
+- AES-GCM token untuk media proxy
+- In-memory cache untuk data scraper
 
-## Fitur Utama
+Database:
 
-- Home dengan sorotan utama, update komik, update anime, dan genre populer.
-- Explore dengan live search, filter status, filter tipe, filter genre, dan infinite loading.
-- Indeks katalog A-Z dengan total item, filter huruf, status, tipe, dan genre.
-- Detail komik dengan info, sinopsis, daftar chapter, library action, dan komentar.
-- Reader komik dengan infinite chapter rendering, komentar chapter, dan kontrol bar yang adaptif.
-- Detail anime dengan info, sinopsis, daftar episode, library action, dan komentar.
-- Halaman nonton dengan custom Naraya video player, pilihan server, download, komentar episode, dan navigasi episode.
-- Login, register, profile, settings, library, dan comment system.
-- API backend untuk data katalog publik dan sistem internal Naraya.
+- PostgreSQL
+- Extension `pgcrypto`
+- SQL migrations di `naraya-api/migrations`
 
-## Menjalankan Development
+## Route Frontend
 
-Prerequisites:
+Route publik:
 
-- Node.js 20 LTS atau lebih baru.
-- npm 10 atau lebih baru.
-- Go 1.25.
-- PostgreSQL 16.
-- Git.
+- `/`
+- `/explore`
+- `/komik`
+- `/komik/[slug]`
+- `/series/[slug]`
+- `/baca/[slug]`
+- `/nonton/[slug]`
+- `/robots.txt`
+- `/sitemap.xml`
+- `/opengraph-image`
+- `/twitter-image`
 
-### 1. Backend
+Route akun:
 
-```bash
-cd naraya-api
-go mod download
-go run ./cmd/migrate
-go run ./cmd/api
-```
+- `/login`
+- `/register`
+- `/profile`
+- `/library`
+- `/settings`
+- `/notifications`
 
-Default backend:
+Route redirect:
 
-```text
-http://127.0.0.1:4000
-```
+- `/baca` redirect ke `/komik`
+- `/nonton` redirect ke `/komik`
+- `/series` redirect ke `/komik`
 
-### 2. Frontend
+## API Backend
 
-```bash
-cd naraya
-npm install
-npm run dev
-```
-
-Default frontend:
-
-```text
-http://127.0.0.1:3000
-```
-
-## Instalasi Lokal dari Nol
-
-Clone repository:
-
-```bash
-git clone https://github.com/mevander88/naraya.git
-cd naraya
-```
-
-Jalankan PostgreSQL lokal:
-
-```bash
-cd naraya-api
-docker compose up -d postgres
-```
-
-Install dan jalankan backend:
-
-```bash
-go mod download
-go run ./cmd/migrate
-go run ./cmd/api
-```
-
-Install dan jalankan frontend di terminal lain:
-
-```bash
-cd naraya
-npm install
-npm run dev
-```
-
-## Environment
-
-Frontend:
-
-```env
-NARAYA_API_URL=http://127.0.0.1:4000/api
-```
-
-Production frontend:
-
-```env
-NARAYA_API_URL=https://naraya.biz.id/api
-```
-
-Backend:
-
-```env
-ADDR=:4000
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/naraya?sslmode=disable
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,https://naraya.biz.id,https://www.naraya.biz.id
-HTTP_TIMEOUT_SECONDS=20
-CACHE_TTL_SECONDS=300
-```
-
-## Build Production Lokal
-
-Backend:
-
-```bash
-cd naraya-api
-go build -o bin/naraya-api.exe ./cmd/api
-go build -o bin/naraya-migrate.exe ./cmd/migrate
-```
-
-Frontend:
-
-```bash
-cd naraya
-npm ci
-npm run build
-npm run start -- --hostname 127.0.0.1 --port 3000
-```
-
-Untuk audit Lighthouse lokal, gunakan `npm run build` dan `npm run start`. Jangan memakai `npm run dev` untuk skor production karena dev server membawa HMR, WebSocket, source dev runtime, dan cache `no-store`.
-
-## API Ringkas
-
-Public content API:
+Public/content API:
 
 - `GET /api/health`
 - `GET /api/home`
 - `GET /api/navigation`
+- `GET /api/sitemap`
 - `GET /api/search?q=keyword`
 - `GET /api/genres`
 - `GET /api/comics/az?page=1&letter=A`
@@ -185,180 +212,505 @@ Public content API:
 - `GET /api/series/latest?page=1`
 - `GET /api/series/:slug`
 - `GET /api/episodes/:slug`
-- `GET /api/video-source?url=...`
+
+Media API:
+
 - `GET /api/images/:token`
 - `GET /api/videos/:token`
+- `GET /api/video-source/:token`
 
-Internal API:
+Account/internal API:
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `GET /api/me`
+- `GET /api/me/stats`
 - `GET /api/library`
 - `POST /api/library`
 - `DELETE /api/library/:comicSlug`
-- `GET /api/comments?comicSlug=...`
-- `GET /api/comments?chapterSlug=...`
+- `GET /api/loves/me`
+- `GET /api/loves/:targetSlug`
+- `POST /api/loves`
+- `GET /api/comments`
+- `GET /api/comments/me`
 - `POST /api/comments`
 - `GET /api/settings`
 - `PATCH /api/settings`
 
-## Database
+## Database Schema
 
-Schema utama:
+Schema utama ada di `naraya-api/database/schema.sql`.
 
-- `naraya_users`
-- `naraya_sessions`
-- `naraya_user_settings`
-- `naraya_library_items`
-- `naraya_comments`
+### `naraya_users`
 
-Migrasi dijalankan dari folder `naraya-api`:
+Menyimpan akun user.
+
+Kolom penting:
+
+- `id`
+- `username`
+- `email`
+- `password_hash`
+- `display_name`
+- `avatar_url`
+- `bio`
+- `role`
+- `created_at`
+- `updated_at`
+
+Index dan constraint penting:
+
+- Unique username.
+- Unique lower email jika email tidak kosong.
+- Unique lower username.
+- Check format email.
+- Check panjang username dan display name.
+
+### `naraya_sessions`
+
+Menyimpan session login.
+
+Kolom penting:
+
+- `id`
+- `user_id`
+- `token_hash`
+- `user_agent`
+- `ip_address`
+- `created_at`
+- `expires_at`
+- `revoked_at`
+
+Index penting:
+
+- `naraya_sessions_user_idx`
+- `naraya_sessions_active_idx`
+- `naraya_sessions_active_lookup_idx`
+
+### `naraya_user_settings`
+
+Menyimpan preferensi user.
+
+Kolom:
+
+- `user_id`
+- `auto_bookmark`
+- `mature_filter`
+- `high_quality_images`
+- `updated_at`
+
+### `naraya_library_items`
+
+Menyimpan rak user, progress, bookmark, dan status baca/nonton.
+
+Kolom penting:
+
+- `id`
+- `user_id`
+- `comic_slug`
+- `comic_title`
+- `cover_url`
+- `source_url`
+- `latest_chapter_slug`
+- `last_chapter_slug`
+- `last_chapter_title`
+- `status`
+- `progress_percent`
+- `is_bookmarked`
+- `content_kind`
+- `added_at`
+- `updated_at`
+- `last_read_at`
+
+Constraint dan index penting:
+
+- Unique `(user_id, comic_slug)`.
+- `status` dibatasi ke `reading`, `planned`, `completed`, `paused`, `dropped`.
+- `content_kind` dibatasi ke `comic` dan `series`.
+- `progress_percent` 0 sampai 100.
+- Index user updated, bookmark, kind updated, dan `(user_id, status)`.
+
+### `naraya_comments`
+
+Menyimpan komentar dan reply.
+
+Kolom penting:
+
+- `id`
+- `user_id`
+- `comic_slug`
+- `chapter_slug`
+- `parent_id`
+- `body`
+- `is_edited`
+- `created_at`
+- `updated_at`
+- `deleted_at`
+
+Constraint dan index penting:
+
+- Komentar wajib memiliki `comic_slug` atau `chapter_slug`.
+- Body 1 sampai 2000 karakter.
+- Index target root cursor untuk pagination komentar.
+- Index chapter root cursor untuk komentar chapter.
+- Index parent latest untuk 3 reply terbaru.
+- Index user cursor untuk riwayat komentar profile.
+
+### `naraya_love_items`
+
+Menyimpan love user ke komik/anime.
+
+Kolom penting:
+
+- `id`
+- `user_id`
+- `target_slug`
+- `target_title`
+- `content_kind`
+- `cover_url`
+- `target_url`
+- `created_at`
+
+Constraint dan index penting:
+
+- Unique `(user_id, target_slug)` agar user tidak bisa love target yang sama dua kali.
+- `content_kind` dibatasi ke `comic` dan `series`.
+- Index by target dan by user created.
+
+### `naraya_love_counts`
+
+Counter love per target.
+
+Kolom:
+
+- `target_slug`
+- `love_count`
+- `updated_at`
+
+Trigger:
+
+- `naraya_love_counts_increment_trigger`
+- `naraya_love_counts_decrement_trigger`
+
+Trigger ini menjaga jumlah love agar tidak perlu dihitung mahal dari tabel
+`naraya_love_items` setiap request detail.
+
+## Migrations
+
+Folder migration:
+
+```text
+naraya-api/migrations
+```
+
+Urutan migration saat ini:
+
+- `001_internal_system.sql`
+- `002_auth_sessions.sql`
+- `003_user_settings.sql`
+- `004_development_copy.sql`
+- `005_library_content_kind.sql`
+- `006_love_items.sql`
+- `007_drop_immersive_setting.sql`
+- `008_backend_scale_indexes.sql`
+- `009_database_hot_path_counters.sql`
+- `010_comment_cursor_indexes.sql`
+- `011_profile_count_indexes.sql`
+
+Jalankan migrasi dari folder backend:
 
 ```bash
+cd naraya-api
 go run ./cmd/migrate
 ```
 
-## Production Notes
+## Environment
 
-- Set `NARAYA_API_URL` ke `https://naraya.biz.id/api`.
-- Set `CORS_ORIGINS` hanya ke domain yang digunakan.
-- Jalankan backend di balik reverse proxy dengan TLS.
-- Gunakan PostgreSQL managed atau instance production yang dibackup rutin.
-- Pastikan cache dan timeout backend disesuaikan dengan kapasitas server.
-- Jangan expose detail sumber data internal pada UI, metadata publik, atau dokumentasi publik.
+### Backend
 
-## Deploy Production
-
-Arsitektur yang disarankan:
+Contoh file:
 
 ```text
-Internet
-  -> Nginx/Caddy reverse proxy dengan TLS
-  -> Next.js frontend di 127.0.0.1:3000
-  -> Go Fiber API di 127.0.0.1:4000
-  -> PostgreSQL private network
+deploy/env/naraya-api.env.example
 ```
 
-Environment production frontend:
-
-```env
-NARAYA_API_URL=https://naraya.biz.id/api
-NEXT_PUBLIC_NARAYA_API_URL=https://naraya.biz.id/api
-NODE_ENV=production
-```
-
-Environment production backend:
+Variabel utama:
 
 ```env
 ADDR=127.0.0.1:4000
-DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/naraya?sslmode=require
+SOURCE_URL=https://www.mynimeku.com
+DATABASE_URL=postgres://naraya_app:change-me@127.0.0.1:5432/naraya?sslmode=disable
+DB_MAX_CONNS=25
+DB_MIN_CONNS=2
 CORS_ORIGINS=https://naraya.biz.id,https://www.naraya.biz.id
 HTTP_TIMEOUT_SECONDS=20
 CACHE_TTL_SECONDS=300
+MEDIA_PROXY_SECRET=change-this-long-random-secret
+WEB_ACCESS_SECRET=change-this-long-random-secret
+NARAYA_INTERNAL_TOKEN=change-this-internal-token
 ```
 
-Urutan deploy:
+Catatan:
 
-1. Pull kode terbaru dari `main`.
-2. Set environment production frontend dan backend.
-3. Jalankan migrasi database.
-4. Build binary backend.
-5. Build frontend Next.js.
-6. Start atau restart service backend.
-7. Start atau restart service frontend.
-8. Pastikan reverse proxy mengarah ke service yang benar.
-9. Cek health endpoint dan halaman utama.
+- `MEDIA_PROXY_SECRET` dipakai untuk token proxy gambar/video.
+- `WEB_ACCESS_SECRET` dipakai untuk cookie web guard. Jika kosong, fallback ke `MEDIA_PROXY_SECRET`.
+- `NARAYA_INTERNAL_TOKEN` dipakai frontend server-side untuk memanggil API protected.
+- `DB_MAX_CONNS` dan `DB_MIN_CONNS` mengatur PostgreSQL pool.
 
-Command deploy manual:
+### Frontend
+
+Contoh file:
+
+```text
+deploy/env/naraya-frontend.env.example
+```
+
+Variabel utama:
+
+```env
+NODE_ENV=production
+PORT=3010
+HOSTNAME=127.0.0.1
+NARAYA_API_URL=https://naraya.biz.id/api
+NEXT_PUBLIC_NARAYA_API_URL=https://naraya.biz.id/api
+NARAYA_INTERNAL_TOKEN=change-this-internal-token
+```
+
+Catatan:
+
+- `NARAYA_API_URL` dipakai server-side frontend.
+- `NEXT_PUBLIC_NARAYA_API_URL` dipakai client-side jika perlu.
+- `NARAYA_INTERNAL_TOKEN` harus sama dengan backend agar sitemap dan server-rendered data bisa mengambil API protected.
+
+## Install Lokal
+
+Prerequisite:
+
+- Node.js 20 atau lebih baru.
+- npm 10 atau lebih baru.
+- Go 1.25.
+- PostgreSQL.
+
+Clone repository:
 
 ```bash
-git pull origin main
+git clone https://github.com/mevander88/naraya.git
+cd naraya
+```
 
+Siapkan database PostgreSQL dan env backend:
+
+```bash
+cp deploy/env/naraya-api.env.example /tmp/naraya-api.env
+```
+
+Sesuaikan `DATABASE_URL`, `MEDIA_PROXY_SECRET`, `WEB_ACCESS_SECRET`, dan
+`NARAYA_INTERNAL_TOKEN`.
+
+Jalankan backend:
+
+```bash
 cd naraya-api
+set -a
+. /tmp/naraya-api.env
+set +a
 go mod download
 go run ./cmd/migrate
-go build -o bin/naraya-api ./cmd/api
+go run ./cmd/api
+```
 
-cd ../naraya
+Backend default:
+
+```text
+http://127.0.0.1:4000
+```
+
+Siapkan env frontend:
+
+```bash
+cp deploy/env/naraya-frontend.env.example /tmp/naraya-frontend.env
+```
+
+Untuk local development, gunakan API lokal:
+
+```env
+NARAYA_API_URL=http://127.0.0.1:4000/api
+NEXT_PUBLIC_NARAYA_API_URL=http://127.0.0.1:4000/api
+```
+
+Jalankan frontend:
+
+```bash
+cd naraya
+set -a
+. /tmp/naraya-frontend.env
+set +a
+npm install
+npm run dev
+```
+
+Frontend development default:
+
+```text
+http://127.0.0.1:3000
+```
+
+## Build Production
+
+Backend:
+
+```bash
+cd naraya-api
+go mod download
+go build -o bin/naraya-api ./cmd/api
+go build -o bin/naraya-migrate ./cmd/migrate
+```
+
+Frontend:
+
+```bash
+cd naraya
 npm ci
 npm run build
 ```
 
-Health check:
+Project memakai `output: 'standalone'`. Pada production systemd, folder
+`.next/static` dan `public` disalin ke `.next/standalone` sebelum server Next
+dijalankan, karena standalone output tidak selalu membawa asset statis tersebut.
+
+## Deploy Production
+
+Arsitektur produksi yang digunakan:
 
 ```text
-GET https://naraya.biz.id/api/health
-GET https://naraya.biz.id
-GET https://naraya.biz.id/sitemap.xml
-GET https://naraya.biz.id/robots.txt
+Internet
+  -> Cloudflare / DNS
+  -> Nginx TLS reverse proxy
+  -> Next.js standalone frontend 127.0.0.1:3010
+  -> Go Fiber API 127.0.0.1:4000
+  -> PostgreSQL
 ```
 
-Contoh Nginx reverse proxy:
+File deploy:
 
-```nginx
-server {
-    listen 80;
-    server_name naraya.biz.id www.naraya.biz.id;
-    return 301 https://naraya.biz.id$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name naraya.biz.id;
-
-    ssl_certificate /etc/letsencrypt/live/naraya.biz.id/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/naraya.biz.id/privkey.pem;
-
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:4000/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
+```text
+deploy/nginx/naraya.biz.id.conf
+deploy/systemd/naraya-api.service
+deploy/systemd/naraya-frontend.service
+deploy/env/naraya-api.env.example
+deploy/env/naraya-frontend.env.example
 ```
 
-Contoh PM2 untuk frontend:
+Urutan deploy:
+
+1. Pull kode terbaru.
+2. Siapkan env di `/etc/naraya/naraya-api.env`.
+3. Siapkan env di `/etc/naraya/naraya-frontend.env`.
+4. Build binary API dan migrator.
+5. Jalankan migrasi database.
+6. Build frontend Next.js.
+7. Install/update systemd unit.
+8. Restart API dan frontend.
+9. Pastikan nginx proxy mengarah ke port yang benar.
+10. Audit health, HTML, static asset, robots, dan sitemap.
+
+Contoh command:
 
 ```bash
-cd naraya
-NARAYA_API_URL=https://naraya.biz.id/api NEXT_PUBLIC_NARAYA_API_URL=https://naraya.biz.id/api pm2 start npm --name naraya-web -- run start -- --hostname 127.0.0.1 --port 3000
-pm2 save
+cd /var/www/naraya
+git pull
+
+cd naraya-api
+go mod download
+go build -o bin/naraya-api ./cmd/api
+go build -o bin/naraya-migrate ./cmd/migrate
+set -a
+. /etc/naraya/naraya-api.env
+set +a
+./bin/naraya-migrate
+
+cd ../naraya
+npm ci
+npm run build
+
+sudo cp /var/www/naraya/deploy/systemd/naraya-api.service /etc/systemd/system/naraya-api.service
+sudo cp /var/www/naraya/deploy/systemd/naraya-frontend.service /etc/systemd/system/naraya-frontend.service
+sudo systemctl daemon-reload
+sudo systemctl restart naraya-api.service
+sudo systemctl restart naraya-frontend.service
 ```
 
-Contoh systemd backend:
+Nginx production memakai:
 
-```ini
-[Unit]
-Description=Naraya API
-After=network.target
-
-[Service]
-WorkingDirectory=/var/www/naraya/naraya-api
-ExecStart=/var/www/naraya/naraya-api/bin/naraya-api
-Restart=always
-RestartSec=5
-Environment=ADDR=127.0.0.1:4000
-Environment=DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/naraya?sslmode=require
-Environment=CORS_ORIGINS=https://naraya.biz.id,https://www.naraya.biz.id
-Environment=HTTP_TIMEOUT_SECONDS=20
-Environment=CACHE_TTL_SECONDS=300
-
-[Install]
-WantedBy=multi-user.target
+```text
+/api/ -> http://127.0.0.1:4000
+/     -> http://127.0.0.1:3010
 ```
+
+Contoh konfigurasi ada di:
+
+```text
+deploy/nginx/naraya.biz.id.conf
+```
+
+## Health Check dan Audit Production
+
+API:
+
+```bash
+curl -i https://naraya.biz.id/api/health
+```
+
+Frontend:
+
+```bash
+curl -I https://naraya.biz.id
+curl -I https://naraya.biz.id/komik
+```
+
+Static asset:
+
+```bash
+curl -I https://naraya.biz.id/logo.svg
+curl -I https://naraya.biz.id/_next/static/chunks/example.css
+```
+
+SEO:
+
+```bash
+curl https://naraya.biz.id/robots.txt
+curl https://naraya.biz.id/sitemap.xml
+```
+
+Service:
+
+```bash
+systemctl is-active naraya-api.service
+systemctl is-active naraya-frontend.service
+journalctl -u naraya-api.service --since '10 minutes ago' --no-pager -o cat
+journalctl -u naraya-frontend.service --since '10 minutes ago' --no-pager -o cat
+```
+
+Media protection checks:
+
+```bash
+# Public cover image should be accessible if token scope is public-image.
+curl -I -A 'Googlebot-Image/1.0' 'https://naraya.biz.id/api/images/<public-image-token>'
+
+# Reader image and video token should remain protected without valid web context.
+curl -I -A 'Googlebot-Image/1.0' 'https://naraya.biz.id/api/images/<reader-image-token>'
+curl -I 'https://naraya.biz.id/api/videos/<video-token>'
+```
+
+## Notes Operasional
+
+- Jangan expose nilai secret di dokumentasi, log publik, atau UI.
+- Ganti `MEDIA_PROXY_SECRET`, `WEB_ACCESS_SECRET`, dan `NARAYA_INTERNAL_TOKEN`
+  untuk setiap environment.
+- Setelah mengubah `robots.txt`, perhatikan cache Cloudflare.
+- Setelah build frontend standalone, pastikan `.next/static` dan `public` tersedia
+  di `.next/standalone`; systemd unit project sudah menanganinya.
+- Jalankan migrasi database sebelum binary API baru dipakai jika perubahan menyentuh schema.
+- Untuk query besar, gunakan index yang sudah tersedia di migration dan jalankan
+  `ANALYZE` setelah migrasi besar.

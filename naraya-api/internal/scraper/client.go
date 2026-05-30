@@ -2,7 +2,6 @@ package scraper
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"naraya-api/internal/proxytoken"
 )
 
 type Client struct {
@@ -19,17 +19,35 @@ type Client struct {
 }
 
 func assetProxyURL(raw string) string {
+	return protectedImageProxyURL(raw)
+}
+
+func coverProxyURL(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	return "/api/images/" + base64.RawURLEncoding.EncodeToString([]byte(raw))
+	return "/api/images/" + proxytoken.EncodeWithScope("public-image", raw)
+}
+
+func protectedImageProxyURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	return "/api/images/" + proxytoken.EncodeWithScope("reader-image", raw)
 }
 
 func videoProxyURL(raw string) string {
 	if raw == "" {
 		return ""
 	}
-	return "/api/videos/" + base64.RawURLEncoding.EncodeToString([]byte(raw))
+	return "/api/videos/" + proxytoken.Encode(raw)
+}
+
+func videoSourceURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	return "/api/video-source/" + proxytoken.Encode(raw)
 }
 
 func NewClient(baseURL string, timeout time.Duration) *Client {

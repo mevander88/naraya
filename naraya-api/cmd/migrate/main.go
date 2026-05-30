@@ -14,7 +14,7 @@ import (
 
 func main() {
 	cfg := config.Load()
-	db, err := database.Connect(context.Background(), cfg.DatabaseURL)
+	db, err := database.Connect(context.Background(), cfg.DatabaseURL, cfg.DBMaxConns, cfg.DBMinConns)
 	if err != nil {
 		log.Fatal(err)
 	}

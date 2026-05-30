@@ -23,6 +23,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS naraya_users_email_unique_idx
 ON naraya_users (lower(email))
 WHERE email <> '';
 
+CREATE UNIQUE INDEX IF NOT EXISTS naraya_users_username_lower_unique_idx
+ON naraya_users (lower(username));
+
 CREATE TABLE IF NOT EXISTS naraya_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES naraya_users(id) ON DELETE CASCADE,
@@ -41,9 +44,13 @@ CREATE INDEX IF NOT EXISTS naraya_sessions_active_idx
 ON naraya_sessions (token_hash, expires_at)
 WHERE revoked_at IS NULL;
 
+CREATE INDEX IF NOT EXISTS naraya_sessions_active_lookup_idx
+ON naraya_sessions (token_hash)
+INCLUDE (user_id, expires_at)
+WHERE revoked_at IS NULL;
+
 CREATE TABLE IF NOT EXISTS naraya_user_settings (
     user_id UUID PRIMARY KEY REFERENCES naraya_users(id) ON DELETE CASCADE,
-    immersive_mode BOOLEAN NOT NULL DEFAULT true,
     auto_bookmark BOOLEAN NOT NULL DEFAULT true,
     mature_filter BOOLEAN NOT NULL DEFAULT false,
     high_quality_images BOOLEAN NOT NULL DEFAULT true,
@@ -82,6 +89,9 @@ ON naraya_library_items (user_id, is_bookmarked, updated_at DESC);
 CREATE INDEX IF NOT EXISTS naraya_library_user_kind_updated_idx
 ON naraya_library_items (user_id, content_kind, updated_at DESC);
 
+CREATE INDEX IF NOT EXISTS naraya_library_user_status_idx
+ON naraya_library_items (user_id, status);
+
 CREATE TABLE IF NOT EXISTS naraya_comments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES naraya_users(id) ON DELETE CASCADE,
@@ -105,9 +115,107 @@ CREATE INDEX IF NOT EXISTS naraya_comments_chapter_idx
 ON naraya_comments (chapter_slug, created_at DESC)
 WHERE deleted_at IS NULL;
 
+CREATE INDEX IF NOT EXISTS naraya_comments_comic_chapter_idx
+ON naraya_comments (comic_slug, chapter_slug, created_at DESC)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS naraya_comments_target_root_cursor_idx
+ON naraya_comments (comic_slug, chapter_slug, created_at DESC, id DESC)
+WHERE deleted_at IS NULL AND parent_id IS NULL;
+
+CREATE INDEX IF NOT EXISTS naraya_comments_chapter_root_cursor_idx
+ON naraya_comments (chapter_slug, created_at DESC, id DESC)
+WHERE deleted_at IS NULL AND parent_id IS NULL;
+
 CREATE INDEX IF NOT EXISTS naraya_comments_parent_idx
 ON naraya_comments (parent_id, created_at ASC)
 WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS naraya_comments_parent_latest_idx
+ON naraya_comments (parent_id, created_at DESC, id DESC)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS naraya_comments_user_created_idx
+ON naraya_comments (user_id, created_at DESC)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS naraya_comments_user_cursor_idx
+ON naraya_comments (user_id, created_at DESC, id DESC)
+WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS naraya_love_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES naraya_users(id) ON DELETE CASCADE,
+    target_slug TEXT NOT NULL,
+    target_title TEXT NOT NULL,
+    content_kind TEXT NOT NULL DEFAULT 'comic',
+    cover_url TEXT NOT NULL DEFAULT '',
+    target_url TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT naraya_love_target_required CHECK (target_slug <> ''),
+    CONSTRAINT naraya_love_content_kind_allowed CHECK (content_kind IN ('comic', 'series')),
+    CONSTRAINT naraya_love_unique_user_target UNIQUE (user_id, target_slug)
+);
+
+CREATE INDEX IF NOT EXISTS naraya_love_target_idx
+ON naraya_love_items (target_slug, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS naraya_love_target_user_idx
+ON naraya_love_items (target_slug, user_id);
+
+CREATE INDEX IF NOT EXISTS naraya_love_user_created_idx
+ON naraya_love_items (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS naraya_love_counts (
+    target_slug TEXT PRIMARY KEY,
+    love_count BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT naraya_love_counts_non_negative CHECK (love_count >= 0)
+);
+
+CREATE OR REPLACE FUNCTION naraya_love_counts_increment()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    INSERT INTO naraya_love_counts (target_slug, love_count, updated_at)
+    VALUES (NEW.target_slug, 1, now())
+    ON CONFLICT (target_slug) DO UPDATE SET
+        love_count = naraya_love_counts.love_count + 1,
+        updated_at = now();
+    RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION naraya_love_counts_decrement()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE naraya_love_counts
+    SET love_count = GREATEST(love_count - 1, 0),
+        updated_at = now()
+    WHERE target_slug = OLD.target_slug;
+
+    DELETE FROM naraya_love_counts
+    WHERE target_slug = OLD.target_slug
+      AND love_count = 0;
+
+    RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS naraya_love_counts_increment_trigger ON naraya_love_items;
+CREATE TRIGGER naraya_love_counts_increment_trigger
+AFTER INSERT ON naraya_love_items
+FOR EACH ROW
+EXECUTE FUNCTION naraya_love_counts_increment();
+
+DROP TRIGGER IF EXISTS naraya_love_counts_decrement_trigger ON naraya_love_items;
+CREATE TRIGGER naraya_love_counts_decrement_trigger
+AFTER DELETE ON naraya_love_items
+FOR EACH ROW
+EXECUTE FUNCTION naraya_love_counts_decrement();
 
 INSERT INTO naraya_users (id, username, display_name, avatar_url, bio, role)
 VALUES (

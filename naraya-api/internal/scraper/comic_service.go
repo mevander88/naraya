@@ -150,7 +150,7 @@ func (s *Service) Detail(ctx context.Context, slug string) (model.ComicDetail, e
 		Slug:        slug,
 		URL:         target,
 		Title:       metaContent(doc, "property", "og:title"),
-		Cover:       assetProxyURL(metaContent(doc, "property", "og:image")),
+		Cover:       coverProxyURL(metaContent(doc, "property", "og:image")),
 		Description: parseSeriesDescription(doc),
 		Info:        parseSeriesInfo(doc),
 		Chapters:    parseChapters(doc, s.client),
@@ -179,7 +179,7 @@ func (s *Service) Series(ctx context.Context, slug string) (model.SeriesDetail, 
 		Slug:        slug,
 		URL:         target,
 		Title:       strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
-		Cover:       assetProxyURL(metaContent(doc, "property", "og:image")),
+		Cover:       coverProxyURL(metaContent(doc, "property", "og:image")),
 		Description: parseSeriesDescription(doc),
 		Genres:      parseSeriesGenres(doc),
 		Info:        parseSeriesInfo(doc),
@@ -204,10 +204,10 @@ func (s *Service) Episode(ctx context.Context, slug string) (model.EpisodeReader
 	reader := model.EpisodeReader{
 		Slug:       slug,
 		Title:      strings.TrimSuffix(metaContent(doc, "property", "og:title"), " - MyNimeku"),
-		Cover:      assetProxyURL(metaContent(doc, "property", "og:image")),
+		Cover:      coverProxyURL(metaContent(doc, "property", "og:image")),
 		SeriesSlug: parseEpisodeSeriesSlug(doc, s.client),
 		Servers:    servers,
-		Downloads:  parseEpisodeDownloads(doc),
+		Downloads:  []model.EpisodeDownload{},
 	}
 	if len(reader.Servers) > 0 {
 		reader.PlayerURL = reader.Servers[0].URL
@@ -223,7 +223,7 @@ func (s *Service) VideoSource(ctx context.Context, playerURL string) (model.Epis
 	result := model.EpisodeServer{URL: playerURL}
 	directURL, ok := s.resolveEpisodeDirectVideo(ctx, playerURL)
 	if !ok {
-		return result, nil
+		return model.EpisodeServer{}, fmt.Errorf("video source is not available through secure proxy")
 	}
 	result.URL = videoProxyURL(directURL)
 	result.Direct = true
@@ -510,7 +510,7 @@ func parseLatestCards(doc *goquery.Document, client *Client) []model.ComicCard {
 			Slug:          slugFromURL(url),
 			Title:         title,
 			URL:           url,
-			Cover:         assetProxyURL(client.absolute(attrAny(card.Find(".mynimeku-update-feed__cover img").First(), "data-lazy-src", "src"))),
+			Cover:         coverProxyURL(client.absolute(attrAny(card.Find(".mynimeku-update-feed__cover img").First(), "data-lazy-src", "src"))),
 			Type:          cardType,
 			Status:        cleanText(badges.Eq(1).Text()),
 			UpdatedAt:     cleanText(card.Find(".mynimeku-update-feed__date").First().Text()),
@@ -572,7 +572,7 @@ func parseSearchCatalog(doc *goquery.Document, client *Client) []model.CatalogIt
 			Slug:        slugFromURL(rawURL),
 			URL:         rawURL,
 			Title:       title,
-			Cover:       assetProxyURL(client.absolute(attrAny(card.Find(".mynimeku-search-feed__cover img").First(), "data-lazy-src", "data-src", "src"))),
+			Cover:       coverProxyURL(client.absolute(attrAny(card.Find(".mynimeku-search-feed__cover img").First(), "data-lazy-src", "data-src", "src"))),
 			Type:        itemType,
 			Status:      cleanText(card.Find(".mynimeku-search-feed__status").First().Text()),
 			Genres:      genres,
@@ -633,7 +633,7 @@ func parseHomeWidgetCard(card *goquery.Selection, client *Client) (model.ComicCa
 		Slug:          slugFromURL(rawURL),
 		Title:         title,
 		URL:           rawURL,
-		Cover:         assetProxyURL(client.absolute(attrAny(card.Find(".mynimeku-update-widget__cover img").First(), "data-lazy-src", "data-src", "src"))),
+		Cover:         coverProxyURL(client.absolute(attrAny(card.Find(".mynimeku-update-widget__cover img").First(), "data-lazy-src", "data-src", "src"))),
 		Type:          cardType,
 		Status:        cleanText(card.Find(".mynimeku-update-widget__status").First().Text()),
 		UpdatedAt:     cleanText(card.Find(".mynimeku-update-widget__new").First().Text()),
@@ -691,7 +691,7 @@ func parseMixCatalog(doc *goquery.Document, client *Client) []model.CatalogItem 
 			Slug:        slugFromURL(url),
 			URL:         url,
 			Title:       title,
-			Cover:       assetProxyURL(client.absolute(attrAny(card.Find(".mynimeku-mix-feed__cover img").First(), "data-lazy-src", "src"))),
+			Cover:       coverProxyURL(client.absolute(attrAny(card.Find(".mynimeku-mix-feed__cover img").First(), "data-lazy-src", "src"))),
 			Type:        cleanText(card.Find(".mynimeku-mix-feed__type").First().Text()),
 			Status:      cleanText(card.Find(".mynimeku-mix-feed__status").First().Text()),
 			Genres:      genres,
@@ -735,7 +735,7 @@ func parseAZCatalog(doc *goquery.Document, client *Client) []model.CatalogItem {
 			Slug:        slugFromURL(rawURL),
 			URL:         rawURL,
 			Title:       title,
-			Cover:       assetProxyURL(client.absolute(attrAny(cover.Find("img").First(), "data-lazy-src", "data-src", "src"))),
+			Cover:       coverProxyURL(client.absolute(attrAny(cover.Find("img").First(), "data-lazy-src", "data-src", "src"))),
 			Type:        firstNonEmpty(cleanText(body.Find(".mynimeku-az-feed__type").First().Text()), "MANGA"),
 			Status:      cleanText(body.Find(".mynimeku-az-feed__status").First().Text()),
 			Genres:      genres,
@@ -943,7 +943,7 @@ func parseEpisodeServers(doc *goquery.Document) []model.EpisodeServer {
 		servers = append(servers, model.EpisodeServer{
 			Type: strings.ToUpper(serverType),
 			Host: cleanText(button.AttrOr("data-player-host", "")),
-			URL:  url,
+			URL:  videoSourceURL(url),
 		})
 	})
 	return servers

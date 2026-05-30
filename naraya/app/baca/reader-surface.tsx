@@ -1,17 +1,21 @@
 'use client';
 
-import { FormEvent, useEffect, useRef, useState } from 'react';
-import { MessageCircle, Send } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { apiURL, mediaURL } from '../lib/client-api';
+import { CommentThread } from '../comment-thread';
 
 type ReaderSurfaceProps = {
   title: string;
   slug: string;
+  comicSlug?: string;
   images: string[];
   chapters?: {
     slug: string;
     title: string;
     number: string;
   }[];
+  immersiveMode?: boolean;
+  highQualityImages?: boolean;
 };
 
 type ReaderChapter = {
@@ -20,41 +24,8 @@ type ReaderChapter = {
   images: string[];
 };
 
-type ChapterComment = {
-  id: string;
-  username: string;
-  displayName: string;
-  avatarUrl: string;
-  role?: string;
-  body: string;
-};
-
-function apiBaseURL() {
-  return process.env.NEXT_PUBLIC_NARAYA_API_URL ?? (process.env.NODE_ENV === 'production' ? 'https://naraya.biz.id/api' : 'http://127.0.0.1:4000/api');
-}
-
-function apiOrigin() {
-  return apiBaseURL().replace(/\/api\/?$/, '');
-}
-
-function mediaURL(value: string) {
-  return value.startsWith('/api/') ? `${apiOrigin()}${value}` : value;
-}
-
-function sessionToken() {
-  return document.cookie
-    .split('; ')
-    .find((row) => row.startsWith('naraya_session='))
-    ?.split('=')[1] ?? '';
-}
-
-function sessionHeaders(): Record<string, string> {
-  const token = sessionToken();
-  return token ? { 'X-Naraya-Session': decodeURIComponent(token) } : {};
-}
-
-export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurfaceProps) {
-  const [chromeVisible, setChromeVisible] = useState(true);
+export function ReaderSurface({ title, slug, comicSlug = '', images, chapters = [], immersiveMode = true, highQualityImages = true }: ReaderSurfaceProps) {
+  const [chromeVisible, setChromeVisible] = useState(immersiveMode);
   const [renderedChapters, setRenderedChapters] = useState<ReaderChapter[]>([{ slug, title, images }]);
   const [loadingNext, setLoadingNext] = useState(false);
   const [finished, setFinished] = useState(false);
@@ -63,8 +34,8 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
   const requestedSlugsRef = useRef(new Set<string>());
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('naraya-reader-chrome', { detail: { visible: chromeVisible } }));
-  }, [chromeVisible]);
+    window.dispatchEvent(new CustomEvent('naraya-reader-chrome', { detail: { visible: immersiveMode ? chromeVisible : true } }));
+  }, [chromeVisible, immersiveMode]);
 
   useEffect(() => {
     return () => {
@@ -73,6 +44,7 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
   }, []);
 
   function toggleChrome() {
+    if (!immersiveMode) return;
     setChromeVisible((visible) => !visible);
   }
 
@@ -94,15 +66,20 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
       requestedSlugsRef.current.add(nextChapter.slug);
       setLoadingNext(true);
       try {
-        const response = await fetch(`${apiBaseURL()}/chapters/${nextChapter.slug}`);
+        const response = await fetch(apiURL(`/chapters/${nextChapter.slug}`));
         if (response.ok) {
           const payload = (await response.json()) as { slug: string; title: string; images?: string[] };
+          const images = (payload.images ?? []).reduce<string[]>((items, image) => {
+            const url = mediaURL(image);
+            if (url) items.push(url);
+            return items;
+          }, []);
           setRenderedChapters((current) => [
             ...current,
             {
               slug: payload.slug,
               title: payload.title || nextChapter.title,
-              images: (payload.images ?? []).map(mediaURL),
+              images,
             },
           ]);
         } else {
@@ -145,6 +122,7 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
         role="button"
         tabIndex={0}
         onClick={toggleChrome}
+        onContextMenu={(event) => event.preventDefault()}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
@@ -152,9 +130,9 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
           }
         }}
         className={`mx-auto flex max-w-4xl cursor-pointer flex-col items-center gap-0 outline-none transition duration-300 ${
-          chromeVisible ? 'pt-2' : 'pt-0'
+          immersiveMode && !chromeVisible ? 'pt-0' : 'pt-2'
         }`}
-        aria-label="Klik untuk sembunyikan atau tampilkan navigasi reader"
+        aria-label={immersiveMode ? 'Klik untuk sembunyikan atau tampilkan navigasi reader' : 'Reader'}
       >
         {renderedChapters.map((chapter, chapterIndex) => (
           <section
@@ -167,7 +145,13 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
           >
             {chapterIndex > 0 ? (
               <>
-                <ChapterComments chapterSlug={renderedChapters[chapterIndex - 1].slug} />
+                <CommentThread
+                  comicSlug={comicSlug}
+                  chapterSlug={renderedChapters[chapterIndex - 1].slug}
+                  title="Komentar Chapter"
+                  emptyText="Belum ada komentar untuk chapter ini."
+                  variant="reader"
+                />
                 <div className="mx-auto my-8 max-w-4xl rounded-2xl border border-white/10 bg-surface-container px-5 py-4 text-center">
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Chapter berikutnya</p>
                   <h2 className="mt-1 font-display text-2xl font-semibold">{chapter.title}</h2>
@@ -179,9 +163,12 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
                 key={`${chapter.slug}-${image}`}
                 src={image}
                 alt={`${chapter.title} page ${index + 1}`}
-                loading={chapterIndex === 0 && index < 2 ? 'eager' : 'lazy'}
-                fetchPriority={chapterIndex === 0 && index < 2 ? 'high' : 'auto'}
+                loading={highQualityImages && chapterIndex === 0 && index < 2 ? 'eager' : 'lazy'}
+                fetchPriority={highQualityImages && chapterIndex === 0 && index < 2 ? 'high' : 'auto'}
                 decoding="async"
+                draggable={false}
+                referrerPolicy="same-origin"
+                onContextMenu={(event) => event.preventDefault()}
                 className="w-full max-w-4xl select-none object-contain"
               />
             ))}
@@ -190,103 +177,6 @@ export function ReaderSurface({ title, slug, images, chapters = [] }: ReaderSurf
       </div>
       <div id="naraya-reader-sentinel" className="flex min-h-28 items-center justify-center py-8 text-sm font-semibold text-on-surface-variant">
         {loadingNext ? 'Menyiapkan chapter berikutnya...' : finished ? 'Kamu sudah sampai chapter terakhir.' : 'Lanjut scroll untuk chapter berikutnya.'}
-      </div>
-    </div>
-  );
-}
-
-function ChapterComments({ chapterSlug }: { chapterSlug: string }) {
-  const [comments, setComments] = useState<ChapterComment[]>([]);
-  const [body, setBody] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'sending' | 'sent' | 'error'>('loading');
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    setIsLoggedIn(Boolean(sessionToken()));
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setStatus('loading');
-    fetch(`${apiBaseURL()}/comments?chapterSlug=${encodeURIComponent(chapterSlug)}`)
-      .then((response) => (response.ok ? response.json() : { items: [] }))
-      .then((payload: { items?: ChapterComment[] }) => {
-        if (!cancelled) {
-          setComments(payload.items ?? []);
-          setStatus('idle');
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setStatus('error');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [chapterSlug]);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!isLoggedIn || !body.trim()) return;
-    setStatus('sending');
-    try {
-      const response = await fetch(`${apiBaseURL()}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...sessionHeaders(),
-        },
-        body: JSON.stringify({ chapterSlug, body }),
-      });
-      if (!response.ok) throw new Error('failed');
-      const created = (await response.json()) as ChapterComment;
-      setComments((current) => [created, ...current]);
-      setBody('');
-      setStatus('sent');
-    } catch {
-      setStatus('error');
-    }
-  }
-
-  return (
-    <div className="mx-auto my-8 max-w-4xl rounded-[2rem] bg-surface-container-low/86 p-5 shadow-xl shadow-black/20 ring-1 ring-white/8">
-      <div className="flex items-center gap-3">
-        <MessageCircle size={20} className="text-primary" />
-        <h2 className="font-display text-2xl font-semibold">Komentar Chapter</h2>
-        <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">{comments.length}</span>
-      </div>
-      <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
-        <input
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          disabled={!isLoggedIn}
-          className="min-h-11 rounded-xl bg-background/45 px-4 text-sm outline-none placeholder:text-on-surface-variant/60 focus:ring-2 focus:ring-primary/30 disabled:opacity-55"
-          placeholder={isLoggedIn ? 'Tulis komentar untuk chapter ini' : 'Login untuk menulis komentar'}
-        />
-        <button disabled={!isLoggedIn || status === 'sending'} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-on-primary disabled:cursor-not-allowed disabled:opacity-45" type="submit">
-          <Send size={16} />
-          {status === 'sending' ? 'Mengirim' : 'Kirim'}
-        </button>
-      </form>
-      <div className="mt-5 grid gap-3">
-        {comments.map((comment) => (
-          <article key={comment.id} className="rounded-2xl bg-background/35 p-4">
-            <div className="flex items-center gap-3">
-              <img src={comment.avatarUrl || '/logo.svg'} alt={comment.displayName} width={44} height={44} loading="lazy" decoding="async" className="h-11 w-11 rounded-2xl object-cover shadow-[0_10px_24px_rgba(0,0,0,0.22)]" />
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="truncate font-semibold">{comment.displayName}</h3>
-                  <span className="rounded-full bg-primary/14 px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-[0.14em] text-primary">{comment.role || 'reader'}</span>
-                </div>
-                <p className="text-xs text-on-surface-variant">@{comment.username}</p>
-              </div>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-on-surface-variant">{comment.body}</p>
-          </article>
-        ))}
-        {status === 'loading' ? <div className="skeleton h-20 rounded-2xl" /> : null}
-        {status !== 'loading' && !comments.length ? (
-          <p className="rounded-2xl bg-background/35 p-4 text-sm text-on-surface-variant">Belum ada komentar untuk chapter ini.</p>
-        ) : null}
       </div>
     </div>
   );

@@ -12,7 +12,8 @@ export const metadata: Metadata = {
 };
 
 export default async function LibraryPage() {
-  const isLoggedIn = Boolean(cookies().get('naraya_session')?.value);
+  const cookieStore = await cookies();
+  const isLoggedIn = Boolean(cookieStore.get('naraya_session')?.value);
   if (!isLoggedIn) {
     redirect('/login?next=/library');
   }

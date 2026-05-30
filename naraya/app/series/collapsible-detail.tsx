@@ -9,8 +9,8 @@ export function CollapsibleInfo({ rows, title = 'Info Anime' }: { rows: InfoRowD
 
   return (
     <div className="relative mt-12 overflow-hidden rounded-[1.5rem] bg-[linear-gradient(145deg,rgba(29,26,35,0.9),rgba(21,18,27,0.88))] p-4 shadow-lg shadow-black/15">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-base font-semibold">{title}</h2>
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <h2 className="min-w-0 break-words font-display text-base font-semibold">{title}</h2>
         {rows.length > 4 ? <ToggleButton expanded={expanded} onClick={() => setExpanded((value) => !value)} /> : null}
       </div>
       <div className={`mt-3 grid gap-2 overflow-hidden transition-[max-height,opacity] duration-500 ease-out md:grid-cols-3 xl:grid-cols-4 ${expanded ? 'max-h-[720px] opacity-100' : 'max-h-[112px] opacity-95'}`}>
@@ -41,8 +41,8 @@ export function CollapsibleSynopsis({ text }: { text: string }) {
 
   return (
     <div className="relative mt-5 overflow-hidden rounded-[2rem] bg-[linear-gradient(145deg,rgba(29,26,35,0.92),rgba(21,18,27,0.9))] p-5 shadow-xl shadow-black/20 md:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Sinopsis</p>
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <p className="min-w-0 text-xs font-semibold uppercase tracking-[0.22em] text-primary">Sinopsis</p>
         {shouldCollapse ? <ToggleButton expanded={expanded} onClick={() => setExpanded((value) => !value)} /> : null}
       </div>
       <div className={`mt-3 overflow-hidden transition-[max-height,opacity] duration-700 ease-out ${!expanded && shouldCollapse ? 'max-h-32 opacity-95' : 'max-h-[900px] opacity-100'}`}>

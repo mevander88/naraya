@@ -1,0 +1,26 @@
+[Unit]
+Description=Naraya Frontend (Next.js standalone)
+After=network-online.target naraya-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/naraya/naraya/.next/standalone
+EnvironmentFile=/etc/naraya/naraya-frontend.env
+ExecStartPre=+/usr/bin/mkdir -p /var/www/naraya/naraya/.next/standalone/.next/static /var/www/naraya/naraya/.next/standalone/public
+ExecStartPre=+/usr/bin/cp -a /var/www/naraya/naraya/.next/static/. /var/www/naraya/naraya/.next/standalone/.next/static/
+ExecStartPre=+/usr/bin/cp -a /var/www/naraya/naraya/public/. /var/www/naraya/naraya/.next/standalone/public/
+ExecStartPre=+/usr/bin/chown -R 33:33 /var/www/naraya/naraya/.next/standalone/.next
+ExecStart=/usr/bin/node /var/www/naraya/naraya/.next/standalone/server.js
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/www/naraya/naraya/.next/standalone/.next
+
+[Install]
+WantedBy=multi-user.target

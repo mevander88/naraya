@@ -8,7 +8,7 @@ Frontend Naraya dibangun dengan Next.js App Router, Tailwind CSS, dan TypeScript
 
 ## Stack
 
-- Next.js 14
+- Next.js 16
 - React 18
 - Tailwind CSS
 - TypeScript
