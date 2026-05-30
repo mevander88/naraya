@@ -4,31 +4,41 @@ const SITE_URL = 'https://naraya.biz.id';
 const AMP_BOILERPLATE = 'body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}';
 const AMP_NO_SCRIPT = 'body{-webkit-animation:none;-moz-animation:none;-ms-animation:none;animation:none}';
 const AMP_STYLE = `
-  :root{color-scheme:dark;--bg:#121019;--surface:#1d1a24;--surface2:#292431;--text:#f4eff4;--muted:#cac4d0;--primary:#d0bcff;--accent:#f2b8b5}
+  :root{color-scheme:dark;--bg:#121019;--surface:#1d1a24;--surface2:#292431;--surface3:#342f3d;--text:#f4eff4;--muted:#cac4d0;--primary:#d0bcff;--accent:#f2b8b5;--line:rgba(255,255,255,.1)}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif;line-height:1.6}
+  body{margin:0;background:linear-gradient(180deg,#17131f 0%,var(--bg) 38%,#0f0d15 100%);color:var(--text);font-family:Manrope,Arial,Helvetica,sans-serif;line-height:1.6}
   a{color:inherit;text-decoration:none}
-  .wrap{width:min(1080px,100%);margin:0 auto;padding:24px 18px 52px}
-  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0 24px}
-  .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.02em}
-  .pill{border:1px solid rgba(208,188,255,.28);border-radius:999px;padding:8px 12px;color:var(--primary);font-size:13px;font-weight:700}
-  .hero{display:grid;gap:20px;margin-top:8px;padding:24px;border-radius:28px;background:linear-gradient(135deg,rgba(208,188,255,.16),rgba(242,184,181,.08)),var(--surface)}
-  h1{margin:0;font-size:clamp(32px,7vw,64px);line-height:1.04;letter-spacing:0}
-  h2{margin:32px 0 14px;font-size:24px;line-height:1.2}
-  h3{margin:12px 0 6px;font-size:18px;line-height:1.25}
+  .wrap{width:min(1120px,100%);margin:0 auto;padding:20px 16px 56px}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0 22px}
+  .brand{display:flex;align-items:center;gap:10px;font-family:Sora,Manrope,Arial,sans-serif;font-weight:800;letter-spacing:.02em}
+  .brand-mark{display:grid;place-items:center;width:46px;height:46px;border-radius:16px;background:rgba(208,188,255,.12);border:1px solid rgba(208,188,255,.22)}
+  .pill{border:1px solid rgba(208,188,255,.32);border-radius:999px;padding:8px 12px;color:var(--primary);font-size:12px;font-weight:800;background:rgba(208,188,255,.08)}
+  .hero{display:grid;gap:22px;margin-top:6px;padding:22px;border-radius:30px;background:linear-gradient(135deg,rgba(208,188,255,.17),rgba(242,184,181,.07)),rgba(29,26,36,.94);border:1px solid var(--line);box-shadow:0 20px 70px rgba(0,0,0,.32);overflow:hidden}
+  .hero-copy{display:grid;gap:14px;align-content:center}
+  .hero-media{border-radius:24px;overflow:hidden;background:var(--surface2);box-shadow:0 18px 50px rgba(0,0,0,.42);border:1px solid rgba(255,255,255,.1)}
+  .hero-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+  .button{display:inline-flex;min-height:46px;align-items:center;justify-content:center;border-radius:14px;background:var(--primary);color:#211e27;padding:11px 16px;font-weight:900}
+  .button-alt{display:inline-flex;min-height:46px;align-items:center;justify-content:center;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid var(--line);color:var(--text);padding:10px 15px;font-weight:800}
+  .section-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin:34px 0 15px}
+  .section-head h2{margin:0}
+  h1{margin:0;font-family:Sora,Manrope,Arial,sans-serif;font-size:clamp(34px,8vw,70px);line-height:1.02;letter-spacing:0}
+  h2{margin:34px 0 15px;font-family:Sora,Manrope,Arial,sans-serif;font-size:25px;line-height:1.2}
+  h3{margin:10px 0 6px;font-size:17px;line-height:1.25}
   p{margin:0;color:var(--muted)}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:14px}
-  .card{display:block;min-width:0;border-radius:18px;background:var(--surface);overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+  .card{display:block;min-width:0;border-radius:20px;background:rgba(29,26,36,.9);overflow:hidden;border:1px solid var(--line)}
   .card-body{padding:12px}
-  .meta{color:var(--primary);font-size:12px;font-weight:700;text-transform:uppercase}
-  .detail{display:grid;gap:22px;margin-top:8px}
-  .cover{border-radius:22px;overflow:hidden;background:var(--surface2)}
+  .meta{color:var(--primary);font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:.14em}
+  .detail{display:grid;gap:22px;margin-top:8px;padding:18px;border-radius:30px;background:linear-gradient(145deg,rgba(208,188,255,.12),rgba(255,255,255,.03));border:1px solid var(--line)}
+  .cover{border-radius:24px;overflow:hidden;background:var(--surface2);box-shadow:0 18px 54px rgba(0,0,0,.42)}
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
-  .chip{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:13px}
+  .chip{border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:6px 10px;color:var(--muted);font-size:12px;background:rgba(255,255,255,.04)}
   .list{display:grid;gap:10px;margin:0;padding:0;list-style:none}
-  .row{display:block;border-radius:16px;background:var(--surface);padding:13px 14px;border:1px solid rgba(255,255,255,.08)}
-  .footer{margin-top:42px;color:var(--muted);font-size:13px}
-  @media (min-width:760px){.detail{grid-template-columns:260px minmax(0,1fr)}.hero{padding:36px}.wrap{padding-inline:28px}}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-radius:17px;background:rgba(29,26,36,.9);padding:13px 14px;border:1px solid var(--line)}
+  .row span{color:var(--primary);font-size:12px;font-weight:800}
+  .footer{margin-top:42px;padding-top:20px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  @media (min-width:640px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.hero{grid-template-columns:minmax(0,1.2fr) 260px;align-items:center;padding:28px}.wrap{padding-inline:24px}}
+  @media (min-width:900px){.grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.detail{grid-template-columns:280px minmax(0,1fr);padding:24px}.hero{grid-template-columns:minmax(0,1fr) 320px;padding:36px}.wrap{padding-inline:30px}}
 `;
 
 type AmpDocument = {
@@ -53,6 +63,7 @@ export function ampResponse(document: AmpDocument) {
 export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[], series: ComicCardData[]) {
   const hero = featured[0] ?? series[0] ?? comics[0];
   const items = [...series.slice(0, 6), ...comics.slice(0, 6)];
+  const heroPath = hero ? `/${hero.kind === 'series' ? 'series' : 'komik'}/${hero.slug}` : '/komik';
   return ampResponse({
     title: 'Naraya - Baca Komik dan Nonton Anime',
     description: 'Naraya adalah platform baca komik dan nonton anime dengan katalog genre, chapter terbaru, episode terbaru, reader, dan player.',
@@ -67,11 +78,18 @@ export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[]
     },
     body: `
       <section class="hero">
-        <p class="meta">AMP Naraya</p>
-        <h1>Baca komik dan nonton anime di Naraya</h1>
-        <p>Temukan update komik, anime, genre, chapter terbaru, dan episode terbaru dalam halaman ringan untuk crawler dan perangkat mobile.</p>
+        <div class="hero-copy">
+          <p class="meta">AMP Naraya</p>
+          <h1>Baca komik dan nonton anime di Naraya</h1>
+          <p>Temukan update komik, anime, genre, chapter terbaru, dan episode terbaru dalam halaman ringan untuk crawler dan perangkat mobile.</p>
+          <div class="hero-actions">
+            <a class="button" href="${SITE_URL}${heroPath}">Buka Pilihan Utama</a>
+            <a class="button-alt" href="${SITE_URL}/explore">Explore</a>
+          </div>
+        </div>
+        ${hero ? `<a class="hero-media" href="${SITE_URL}${heroPath}"><amp-img src="${escapeAttr(absoluteURL(hero.image))}" width="640" height="900" layout="responsive" alt="${escapeAttr(hero.title)}"></amp-img></a>` : ''}
       </section>
-      <h2>Update Terbaru</h2>
+      <div class="section-head"><h2>Update Terbaru</h2><a class="pill" href="${SITE_URL}/komik">Lihat katalog</a></div>
       ${renderCardGrid(items)}
     `,
   });
@@ -102,8 +120,11 @@ export function renderComicAmp(detail: ComicDetailData) {
         description,
         cover: detail.cover,
         genres: detail.genres,
+        canonicalPath: `/komik/${detail.slug}`,
+        primaryLabel: detail.chapters[0]?.number ? `Baca Chapter ${detail.chapters[0].number}` : 'Baca Chapter Terbaru',
+        primaryPath: detail.chapters[0]?.slug ? `/baca/${detail.chapters[0].slug}` : `/komik/${detail.slug}`,
       })}
-      <h2>Chapter Terbaru</h2>
+      <div class="section-head"><h2>Chapter Terbaru</h2><a class="pill" href="${SITE_URL}/komik/${escapeAttr(detail.slug)}">Versi utama</a></div>
       ${renderChapterList(detail.chapters.slice(0, 20))}
     `,
   });
@@ -135,8 +156,11 @@ export function renderSeriesAmp(detail: SeriesDetailData) {
         description,
         cover: detail.cover,
         genres: detail.genres,
+        canonicalPath: `/series/${detail.slug}`,
+        primaryLabel: 'Nonton Episode Terbaru',
+        primaryPath: detail.episodes[0]?.slug ? `/nonton/${detail.episodes[0].slug}` : `/series/${detail.slug}`,
       })}
-      <h2>Episode Terbaru</h2>
+      <div class="section-head"><h2>Episode Terbaru</h2><a class="pill" href="${SITE_URL}/series/${escapeAttr(detail.slug)}">Versi utama</a></div>
       ${renderEpisodeList(detail.episodes.slice(0, 20))}
     `,
   });
@@ -174,7 +198,7 @@ function renderAmpDocument(document: AmpDocument) {
     <main class="wrap">
       <nav class="nav">
         <a class="brand" href="${SITE_URL}/">
-          <amp-img src="${SITE_URL}/logo.svg" width="42" height="22" layout="fixed" alt="Naraya"></amp-img>
+          <span class="brand-mark"><amp-img src="${SITE_URL}/logo.svg" width="32" height="18" layout="fixed" alt="Naraya"></amp-img></span>
           <span>Naraya</span>
         </a>
         <a class="pill" href="${escapeAttr(canonical)}">Buka versi utama</a>
@@ -186,7 +210,7 @@ function renderAmpDocument(document: AmpDocument) {
 </html>`;
 }
 
-function renderDetailHeader(props: { title: string; eyebrow: string; description: string; cover: string; genres: string[] }) {
+function renderDetailHeader(props: { title: string; eyebrow: string; description: string; cover: string; genres: string[]; canonicalPath: string; primaryLabel: string; primaryPath: string }) {
   return `
     <section class="detail">
       <div class="cover">
@@ -196,6 +220,10 @@ function renderDetailHeader(props: { title: string; eyebrow: string; description
         <p class="meta">${escapeHTML(props.eyebrow)}</p>
         <h1>${escapeHTML(props.title)}</h1>
         <p>${escapeHTML(trimText(props.description, 520))}</p>
+        <div class="hero-actions">
+          <a class="button" href="${SITE_URL}${escapeAttr(props.primaryPath)}">${escapeHTML(props.primaryLabel)}</a>
+          <a class="button-alt" href="${SITE_URL}${escapeAttr(props.canonicalPath)}">Detail lengkap</a>
+        </div>
         <div class="chips">${props.genres.map((genre) => `<span class="chip">${escapeHTML(genre)}</span>`).join('')}</div>
       </div>
     </section>
@@ -225,7 +253,7 @@ function renderChapterList(chapters: ChapterData[]) {
   if (!chapters.length) return '<p>Belum ada chapter yang tersedia.</p>';
   return `<ul class="list">${chapters.map((chapter) => `
     <li><a class="row" href="${SITE_URL}/baca/${escapeAttr(chapter.slug)}">
-      <strong>${escapeHTML(chapter.title || `Chapter ${chapter.number}`)}</strong><br>
+      <strong>${escapeHTML(chapter.title || `Chapter ${chapter.number}`)}</strong>
       <span>${escapeHTML(chapter.date || chapter.number || 'Chapter')}</span>
     </a></li>
   `).join('')}</ul>`;
@@ -235,7 +263,7 @@ function renderEpisodeList(episodes: SeriesEpisodeData[]) {
   if (!episodes.length) return '<p>Belum ada episode yang tersedia.</p>';
   return `<ul class="list">${episodes.map((episode) => `
     <li><a class="row" href="${SITE_URL}/nonton/${escapeAttr(episode.slug)}">
-      <strong>${escapeHTML(episode.title || `Episode ${episode.number}`)}</strong><br>
+      <strong>${escapeHTML(episode.title || `Episode ${episode.number}`)}</strong>
       <span>${escapeHTML(episode.date || episode.number || 'Episode')}</span>
     </a></li>
   `).join('')}</ul>`;
