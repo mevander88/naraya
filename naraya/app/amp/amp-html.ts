@@ -79,9 +79,9 @@ export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[]
     body: `
       <section class="hero">
         <div class="hero-copy">
-          <p class="meta">AMP Naraya</p>
+          <p class="meta">Naraya</p>
           <h1>Baca komik dan nonton anime di Naraya</h1>
-          <p>Temukan update komik, anime, genre, chapter terbaru, dan episode terbaru dalam halaman ringan untuk crawler dan perangkat mobile.</p>
+          <p>Temukan update komik, anime, genre, chapter terbaru, dan episode terbaru di Naraya.</p>
           <div class="hero-actions">
             <a class="button" href="${SITE_URL}${heroPath}">Buka Pilihan Utama</a>
             <a class="button-alt" href="${SITE_URL}/explore">Explore</a>
@@ -204,7 +204,7 @@ function renderAmpDocument(document: AmpDocument) {
         <a class="pill" href="${escapeAttr(canonical)}">Buka versi utama</a>
       </nav>
       ${document.body}
-      <footer class="footer">Naraya AMP - halaman ringan untuk crawler dan mobile.</footer>
+      <footer class="footer">Naraya</footer>
     </main>
   </body>
 </html>`;
