@@ -187,6 +187,18 @@ func normalizeLibraryMediaURL(value string) string {
 		return raw
 	}
 	if !strings.Contains(token, ".") {
+		if target, scope, err := proxytoken.DecodeWithScope(token); err == nil {
+			if scope == "public-image" {
+				return "/api/images/" + token
+			}
+			if allowedLegacyImageTarget(target) {
+				return "/api/images/" + proxytoken.EncodeWithScope("public-image", target)
+			}
+			return raw
+		}
+		if target, _, err := proxytoken.DecodeWithScopeAllowExpired(token); err == nil && allowedLegacyImageTarget(target) {
+			return "/api/images/" + proxytoken.EncodeWithScope("public-image", target)
+		}
 		return "/api/images/" + token
 	}
 	target, ok := legacyImageTarget(token)

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ComicCardData, LibraryItem } from '../data';
+import { apiCredentials, apiURL } from '../lib/client-api';
 
 type LibraryClientProps = {
   library: LibraryItem[];
@@ -24,10 +25,49 @@ function itemHref(item: LibraryItem) {
 
 export function LibraryClient({ library, suggestions }: LibraryClientProps) {
   const [activeType, setActiveType] = useState('All');
+  const [coverOverrides, setCoverOverrides] = useState<Record<string, string>>({});
+  const coverRefreshAttempts = useRef(new Set<string>());
   const visibleItems = useMemo(() => {
     if (activeType === 'All') return library;
     return library.filter((item) => itemKind(item) === activeType);
   }, [activeType, library]);
+  const refreshCover = useCallback(async (item: LibraryItem) => {
+    if (coverRefreshAttempts.current.has(item.id)) return;
+    coverRefreshAttempts.current.add(item.id);
+    try {
+      const detailPath = item.contentKind === 'series' ? `/series/${item.comicSlug}` : `/comics/${item.comicSlug}`;
+      const detailResponse = await fetch(apiURL(detailPath), {
+        cache: 'no-store',
+        credentials: apiCredentials(),
+      });
+      if (!detailResponse.ok) return;
+      const detail = (await detailResponse.json()) as { cover?: string };
+      const coverUrl = detail.cover?.trim();
+      if (!coverUrl) return;
+      setCoverOverrides((current) => ({ ...current, [item.id]: coverUrl }));
+      await fetch(apiURL('/library'), {
+        method: 'POST',
+        credentials: apiCredentials(),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comicSlug: item.comicSlug,
+          comicTitle: item.comicTitle,
+          contentKind: item.contentKind === 'series' ? 'series' : 'comic',
+          coverUrl,
+          latestChapterSlug: item.latestChapterSlug,
+          lastChapterSlug: item.lastChapterSlug,
+          lastChapterTitle: item.lastChapterTitle,
+          status: item.status,
+          progressPercent: item.progressPercent,
+          isBookmarked: item.isBookmarked,
+        }),
+      });
+    } catch {
+      // The visual fallback remains in place if the cover cannot be refreshed.
+    }
+  }, []);
 
   return (
     <section className="px-container-mobile pt-28 md:px-container-desktop">
@@ -62,7 +102,19 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
             className="glass-panel interactive-lift reveal-soft group flex min-w-0 gap-4 rounded-2xl p-4 transition hover:border-primary/40 md:items-center md:p-5"
             aria-label={`${item.contentKind === 'series' ? 'Buka anime' : 'Buka komik'} ${item.comicTitle}`}
           >
-            <img src={item.coverUrl} alt={item.comicTitle} width={80} height={112} loading="lazy" decoding="async" className="h-28 w-20 rounded-xl object-cover" />
+            <img
+              src={coverOverrides[item.id] || item.coverUrl || '/logo.svg'}
+              alt={item.comicTitle}
+              width={80}
+              height={112}
+              loading="lazy"
+              decoding="async"
+              onError={(event) => {
+                event.currentTarget.src = '/logo.svg';
+                void refreshCover(item);
+              }}
+              className="h-28 w-20 shrink-0 rounded-xl object-cover"
+            />
             <div className="min-w-0 flex-1">
               <div className="mb-2 inline-flex rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
                 {itemKind(item)}

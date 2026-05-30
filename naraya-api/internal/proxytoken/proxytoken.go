@@ -67,6 +67,14 @@ func Decode(token string) (string, error) {
 }
 
 func DecodeWithScope(token string) (string, string, error) {
+	return decodeWithScope(token, true)
+}
+
+func DecodeWithScopeAllowExpired(token string) (string, string, error) {
+	return decodeWithScope(token, false)
+}
+
+func decodeWithScope(token string, enforceExpiry bool) (string, string, error) {
 	rawToken := strings.TrimSpace(token)
 	if rawToken == "" || strings.Contains(rawToken, ".") {
 		return "", "", errInvalidToken
@@ -104,7 +112,7 @@ func DecodeWithScope(token string) (string, string, error) {
 		value = parts[2]
 	}
 	expiresAt, err := strconv.ParseInt(expiresRaw, 10, 64)
-	if err != nil || expiresAt < time.Now().Unix() || value == "" {
+	if err != nil || (enforceExpiry && expiresAt < time.Now().Unix()) || value == "" {
 		return "", "", errInvalidToken
 	}
 	return value, scope, nil
