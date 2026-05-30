@@ -1,5 +1,9 @@
 # Naraya
 
+<p align="center">
+  <img src="naraya/public/logo.svg" alt="Logo Naraya" width="420">
+</p>
+
 Naraya adalah aplikasi web untuk membaca komik dan menonton anime. Project ini
 terdiri dari frontend Next.js dan backend Go yang mengambil data katalog dari
 source upstream, menyajikan halaman publik untuk SEO, serta menyediakan fitur
