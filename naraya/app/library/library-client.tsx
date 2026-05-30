@@ -234,21 +234,21 @@ function FilterDropdown<T extends string>({ label, value, options, onChange }: {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className={`group flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 text-left text-sm font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.055)] transition active:scale-[0.98] ${
+        className={`group flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 text-left text-sm font-semibold transition active:scale-[0.98] ${
           open
-            ? 'border-primary/45 bg-primary/14 text-primary shadow-glow'
-            : 'border-white/10 bg-surface-container-high text-on-surface-variant hover:border-primary/35 hover:bg-primary/10 hover:text-primary'
+            ? 'border-primary/45 bg-surface-container-highest text-primary'
+            : 'border-outline-variant bg-surface-container-high text-on-surface hover:border-primary/45 hover:bg-surface-variant hover:text-primary'
         }`}
         aria-expanded={open}
       >
         <span className="min-w-0">
-          <span className="block text-[10px] font-extrabold uppercase tracking-[0.16em] text-on-surface-variant/80">{label}</span>
+          <span className={`block text-[10px] font-bold uppercase tracking-[0.14em] ${open ? 'text-primary/85' : 'text-on-surface-variant'}`}>{label}</span>
           <span className="block truncate">{selected.label}</span>
         </span>
         <ChevronDown size={16} className={`shrink-0 transition ${open ? 'rotate-180 text-primary' : 'text-primary/75'}`} />
       </button>
       {open ? (
-        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-40 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#181520]/98 p-1.5 shadow-2xl shadow-black/45 backdrop-blur-xl">
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-40 w-full overflow-hidden rounded-2xl border border-outline-variant bg-surface-container-high p-1.5 shadow-xl shadow-black/30">
           {options.map((option) => {
             const active = option.id === value;
             return (
@@ -259,10 +259,10 @@ function FilterDropdown<T extends string>({ label, value, options, onChange }: {
                   onChange(option.id);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold transition ${
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition ${
                   active
-                    ? 'bg-primary/18 text-primary'
-                    : 'text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                    ? 'bg-surface-variant text-primary ring-1 ring-primary/25'
+                    : 'text-on-surface-variant hover:bg-surface-variant hover:text-on-surface'
                 }`}
               >
                 <span className="truncate">{option.label}</span>
