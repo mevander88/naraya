@@ -1,5 +1,6 @@
 'use client';
 
+import { Check, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { ComicCardData, LibraryItem } from '../data';
@@ -11,14 +12,20 @@ type LibraryClientProps = {
 };
 
 type LibrarySection = 'favorites' | 'history';
+type TypeFilter = 'All' | 'Anime' | 'Komik';
 type StatusFilter = 'all' | 'reading' | 'completed';
+type DropdownOption<T extends string> = { id: T; label: string };
 
 const librarySections: Array<{ id: LibrarySection; label: string }> = [
   { id: 'favorites', label: 'Favorit' },
   { id: 'history', label: 'Riwayat' },
 ];
-const typeFilters = ['All', 'Anime', 'Komik'];
-const statusFilters: Array<{ id: StatusFilter; label: string }> = [
+const typeFilters: Array<DropdownOption<TypeFilter>> = [
+  { id: 'All', label: 'Semua tipe' },
+  { id: 'Anime', label: 'Anime' },
+  { id: 'Komik', label: 'Komik' },
+];
+const statusFilters: Array<DropdownOption<StatusFilter>> = [
   { id: 'all', label: 'Semua status' },
   { id: 'reading', label: 'Berjalan' },
   { id: 'completed', label: 'Selesai' },
@@ -47,7 +54,7 @@ function itemProgressLabel(item: LibraryItem) {
 
 export function LibraryClient({ library, suggestions }: LibraryClientProps) {
   const [activeSection, setActiveSection] = useState<LibrarySection>('favorites');
-  const [activeType, setActiveType] = useState('All');
+  const [activeType, setActiveType] = useState<TypeFilter>('All');
   const [activeStatus, setActiveStatus] = useState<StatusFilter>('all');
   const [coverOverrides, setCoverOverrides] = useState<Record<string, string>>({});
   const coverRefreshAttempts = useRef(new Set<string>());
@@ -127,40 +134,22 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
             );
           })}
         </div>
-        <div className="flex min-w-0 flex-wrap gap-2">
-          {typeFilters.map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              onClick={() => setActiveType(filter)}
-              className={`rounded-full px-4 py-2 text-sm font-bold transition active:scale-95 ${
-                activeType === filter
-                  ? 'bg-primary/18 text-primary ring-1 ring-primary/40'
-                  : 'bg-surface-container-high text-on-surface-variant hover:bg-primary/12 hover:text-primary'
-              }`}
-            >
-              {filter === 'All' ? 'Semua tipe' : filter}
-            </button>
-          ))}
+        <div className="flex min-w-0 flex-wrap gap-3">
+          <FilterDropdown
+            label="Tipe"
+            value={activeType}
+            options={typeFilters}
+            onChange={setActiveType}
+          />
+          {activeSection === 'history' ? (
+            <FilterDropdown
+              label="Status"
+              value={activeStatus}
+              options={statusFilters}
+              onChange={setActiveStatus}
+            />
+          ) : null}
         </div>
-        {activeSection === 'history' ? (
-          <div className="flex min-w-0 flex-wrap gap-2">
-            {statusFilters.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setActiveStatus(filter.id)}
-                className={`rounded-full px-4 py-2 text-sm font-bold transition active:scale-95 ${
-                  activeStatus === filter.id
-                    ? 'bg-primary/18 text-primary ring-1 ring-primary/40'
-                    : 'bg-surface-container-high text-on-surface-variant hover:bg-primary/12 hover:text-primary'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
       </div>
 
       <div className="mt-9 grid gap-4 md:gap-5">
@@ -233,5 +222,56 @@ export function LibraryClient({ library, suggestions }: LibraryClientProps) {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function FilterDropdown<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: Array<DropdownOption<T>>; onChange: (value: T) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = options.find((option) => option.id === value) ?? options[0];
+
+  return (
+    <div className="relative min-w-[10.5rem] max-w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className={`group flex min-h-11 w-full items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 text-left text-sm font-bold shadow-[inset_0_1px_0_rgba(255,255,255,0.055)] transition active:scale-[0.98] ${
+          open
+            ? 'border-primary/45 bg-primary/14 text-primary shadow-glow'
+            : 'border-white/10 bg-surface-container-high text-on-surface-variant hover:border-primary/35 hover:bg-primary/10 hover:text-primary'
+        }`}
+        aria-expanded={open}
+      >
+        <span className="min-w-0">
+          <span className="block text-[10px] font-extrabold uppercase tracking-[0.16em] text-on-surface-variant/80">{label}</span>
+          <span className="block truncate">{selected.label}</span>
+        </span>
+        <ChevronDown size={16} className={`shrink-0 transition ${open ? 'rotate-180 text-primary' : 'text-primary/75'}`} />
+      </button>
+      {open ? (
+        <div className="absolute left-0 top-[calc(100%+0.5rem)] z-40 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#181520]/98 p-1.5 shadow-2xl shadow-black/45 backdrop-blur-xl">
+          {options.map((option) => {
+            const active = option.id === value;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  onChange(option.id);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-bold transition ${
+                  active
+                    ? 'bg-primary/18 text-primary'
+                    : 'text-on-surface-variant hover:bg-primary/10 hover:text-primary'
+                }`}
+              >
+                <span className="truncate">{option.label}</span>
+                {active ? <Check size={15} className="shrink-0" /> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
