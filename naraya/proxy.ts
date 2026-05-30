@@ -5,6 +5,11 @@ const TOKEN_TTL_SECONDS = 2 * 60 * 60;
 
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next();
+  const ampURL = ampURLForPath(request.nextUrl.pathname);
+  if (ampURL) {
+    response.headers.append('Link', `<${ampURL}>; rel="amphtml"`);
+  }
+
   const secret = process.env.WEB_ACCESS_SECRET || process.env.NARAYA_WEB_ACCESS_SECRET || '';
   if (!secret) return response;
 
@@ -21,9 +26,16 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|robots.txt|sitemap.xml|logo.svg|opengraph-image|twitter-image).*)',
+    '/((?!api|amp|_next/static|_next/image|favicon.ico|manifest.webmanifest|robots.txt|sitemap.xml|logo.svg|opengraph-image|twitter-image).*)',
   ],
 };
+
+function ampURLForPath(pathname: string) {
+  if (pathname === '/') return 'https://naraya.biz.id/amp';
+  const match = pathname.match(/^\/(komik|series)\/([^/]+)\/?$/);
+  if (!match) return '';
+  return `https://naraya.biz.id/amp/${match[1]}/${match[2]}`;
+}
 
 async function createWebToken(userAgent: string, secret: string) {
   const expiresAt = String(Math.floor(Date.now() / 1000) + TOKEN_TTL_SECONDS);

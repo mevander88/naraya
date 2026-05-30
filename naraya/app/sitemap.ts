@@ -14,21 +14,37 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     changeFrequency: path === '' ? ('daily' as const) : ('weekly' as const),
     priority: path === '' ? 1 : 0.8,
   }));
+  const ampStaticRoutes = [{
+    url: `${base}/amp`,
+    lastModified: now,
+    changeFrequency: 'daily' as const,
+    priority: 0.7,
+  }];
   const seen = new Set<string>();
   const catalogRoutes = catalog.flatMap((item) => {
     if (!item.slug || (item.kind !== 'series' && item.kind !== 'comic')) return [];
-    const url = `${base}/${item.kind === 'series' ? 'series' : 'komik'}/${item.slug}`;
+    const section = item.kind === 'series' ? 'series' : 'komik';
+    const url = `${base}/${section}/${item.slug}`;
     if (seen.has(url)) return [];
     seen.add(url);
-    return [{
-      url,
-      lastModified: safeDate(item.lastMod, now),
-      changeFrequency: 'weekly' as const,
-      priority: item.kind === 'series' ? 0.72 : 0.75,
-    }];
+    const lastModified = safeDate(item.lastMod, now);
+    return [
+      {
+        url,
+        lastModified,
+        changeFrequency: 'weekly' as const,
+        priority: item.kind === 'series' ? 0.72 : 0.75,
+      },
+      {
+        url: `${base}/amp/${section}/${item.slug}`,
+        lastModified,
+        changeFrequency: 'weekly' as const,
+        priority: item.kind === 'series' ? 0.52 : 0.55,
+      },
+    ];
   });
 
-  return [...staticRoutes, ...catalogRoutes];
+  return [...staticRoutes, ...ampStaticRoutes, ...catalogRoutes];
 }
 
 function safeDate(value: string, fallback: Date) {

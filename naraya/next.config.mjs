@@ -44,6 +44,10 @@ const nextConfig = {
         source: '/sitemap.xml',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=3600' }],
       },
+      {
+        source: '/amp/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400' }],
+      },
     ];
   },
 };
