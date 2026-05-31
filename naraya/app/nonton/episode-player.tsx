@@ -28,6 +28,7 @@ export function EpisodePlayer({ title, playerUrl, servers, episodeLabel }: Episo
   const [resolvedDirect, setResolvedDirect] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [open, setOpen] = useState(false);
+  const [slowResolving, setSlowResolving] = useState(false);
   const activeServer = normalizedServers.find((server) => server.url === activeUrl);
   const activeIsDirect = Boolean(resolvedDirect || activeServer?.direct || /\.(m3u8|mp4)(\?|$)/i.test(resolvedUrl) || resolvedUrl.includes('/media/') || resolvedUrl.startsWith('/api/videos/') || resolvedUrl.includes('/api/videos/'));
   const resolvedIsResolverUrl = resolvedUrl.includes('/api/video-source/');
@@ -77,6 +78,13 @@ export function EpisodePlayer({ title, playerUrl, servers, episodeLabel }: Episo
     };
   }, [activeServer?.direct, activeUrl]);
 
+  useEffect(() => {
+    setSlowResolving(false);
+    if (!showResolvingState) return;
+    const timer = window.setTimeout(() => setSlowResolving(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [activeUrl, showResolvingState]);
+
   return (
     <div>
       <div className="naraya-player-frame relative aspect-video overflow-hidden rounded-[1.55rem] bg-black shadow-[0_22px_60px_rgba(0,0,0,0.38)]">
@@ -88,19 +96,27 @@ export function EpisodePlayer({ title, playerUrl, servers, episodeLabel }: Episo
                 <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
               </span>
               <span className="mt-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">Menyiapkan server</span>
+              {slowResolving ? (
+                <span className="mt-2 max-w-xs text-sm leading-6 text-on-surface-variant">
+                  Jika video belum muncul, coba ganti server dari pilihan di bawah player.
+                </span>
+              ) : null}
             </div>
           </div>
         ) : resolvedUrl && activeIsDirect ? (
           <NarayaVideoPlayer key={resolvedUrl} title={title} src={resolvedUrl} resolving={resolving} />
         ) : (
-          <div className="grid h-full place-items-center px-6 text-center text-on-surface-variant">
-            Server aman belum tersedia untuk episode ini.
+          <div className="grid h-full place-items-center px-6 text-center">
+            <div className="max-w-sm rounded-[1.5rem] bg-[rgba(18,14,25,0.72)] px-5 py-4 shadow-2xl shadow-black/35 backdrop-blur-xl">
+              <p className="font-display text-xl font-semibold text-on-surface">Video belum bisa dimuat.</p>
+              <p className="mt-2 text-sm leading-6 text-on-surface-variant">Coba ganti server dari pilihan di bawah player.</p>
+            </div>
           </div>
         )}
       </div>
       {normalizedServers.length ? (
         <div className="relative mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(240px,360px)] md:items-end">
-          <div>
+          <div className="order-2 md:order-1">
             <div className="mb-2 flex items-end justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Server</p>
               <p className="text-xs font-semibold text-on-surface-variant">{normalizedServers.length} pilihan</p>
@@ -116,7 +132,7 @@ export function EpisodePlayer({ title, playerUrl, servers, episodeLabel }: Episo
               <ChevronDown size={17} className={`shrink-0 text-primary transition ${open ? 'rotate-180' : ''}`} />
             </button>
           </div>
-          <div className="flex h-12 min-w-0 items-center justify-between gap-3 px-1 md:px-0">
+          <div className="order-1 flex h-12 min-w-0 items-center justify-between gap-3 px-1 md:order-2 md:px-0">
             <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.18em] text-primary">Episode</p>
             <p className="min-w-0 truncate text-sm font-bold text-on-surface">{episodeLabel ?? title}</p>
           </div>
@@ -163,6 +179,7 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
   const [error, setError] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [waiting, setWaiting] = useState(true);
+  const [slowLoading, setSlowLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -194,6 +211,13 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
     const video = videoRef.current;
     if (video) setCurrent(video.currentTime || 0);
   }, [controlsVisible]);
+
+  useEffect(() => {
+    setSlowLoading(false);
+    if ((!waiting && !resolving) || error) return;
+    const timer = window.setTimeout(() => setSlowLoading(true), 8000);
+    return () => window.clearTimeout(timer);
+  }, [error, resolving, src, waiting]);
 
   function handleSurfaceClick() {
     tapCountRef.current += 1;
@@ -331,7 +355,7 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
         <div className="absolute inset-0 grid place-items-center bg-black/72 px-6 text-center">
           <div>
             <p className="font-display text-xl font-semibold text-on-surface">Server ini belum bisa diputar.</p>
-            <p className="mt-2 text-sm text-on-surface-variant">Pilih server lain dari dropdown di bawah player.</p>
+            <p className="mt-2 text-sm leading-6 text-on-surface-variant">Pilih server lain dari dropdown di bawah player.</p>
           </div>
         </div>
       ) : null}
@@ -346,6 +370,11 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
             <span className="mt-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">
               {resolving ? 'Menyiapkan server' : 'Memuat video'}
             </span>
+            {slowLoading ? (
+              <span className="mt-2 max-w-xs text-center text-sm leading-6 text-on-surface-variant">
+                Jika video terlalu lama atau tidak terload, coba ganti server dari pilihan di bawah player.
+              </span>
+            ) : null}
           </div>
         </div>
       ) : null}

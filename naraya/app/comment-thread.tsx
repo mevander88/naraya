@@ -185,7 +185,7 @@ export function CommentThread({
 
   function renderComment(comment: CommentItem, replies: CommentItem[] = [], isReply = false) {
     return (
-      <article key={comment.id} className="min-w-0 rounded-2xl bg-background/35 p-4">
+      <article key={comment.id} className="min-w-0 rounded-2xl bg-background/35 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_12px_30px_rgba(0,0,0,0.18)] sm:p-4">
         <div className="flex min-w-0 items-start gap-3">
           <img src={comment.avatarUrl || '/logo.svg'} alt={comment.displayName} width={40} height={40} loading="lazy" decoding="async" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
           <div className="min-w-0 flex-1">
@@ -207,14 +207,14 @@ export function CommentThread({
           <button
             type="button"
             onClick={() => startReply(comment)}
-            className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-3 py-2 text-xs font-bold text-primary transition hover:border-primary/50 hover:bg-primary/10"
+            className="mt-3 inline-flex min-h-9 items-center justify-center gap-2 rounded-xl bg-surface-container-high px-3 py-2 text-xs font-bold text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_10px_24px_rgba(0,0,0,0.16)] transition hover:bg-primary/10"
           >
             <Reply size={14} />
             Balas
           </button>
         ) : null}
         {replies.length ? (
-          <div className="mt-4 grid min-w-0 gap-3 border-l border-white/10 pl-3 sm:pl-4">
+          <div className="mt-4 grid min-w-0 gap-3 rounded-2xl bg-black/12 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] sm:p-4">
             {replies.map((reply) => renderComment(reply, [], true))}
           </div>
         ) : null}
@@ -228,13 +228,16 @@ export function CommentThread({
         <div className="flex min-w-0 items-center gap-3">
           <MessageCircle size={20} className="shrink-0 text-primary" />
           <h2 className="min-w-0 font-display text-2xl font-semibold">{title}</h2>
-          <span className="shrink-0 rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">{total}</span>
+          <span className="inline-flex w-fit max-w-full shrink-0 flex-col items-center gap-1">
+            <span className="rounded-full bg-primary/15 px-3 py-1 text-xs font-semibold text-primary">{total}</span>
+            <span className="h-px w-full rounded-full bg-primary/65 shadow-[0_0_14px_rgba(216,178,255,0.24)]" />
+          </span>
         </div>
         <button
           type="button"
           onClick={() => void loadComments()}
           disabled={status === 'loading' || status === 'sending'}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-3 py-2 text-xs font-bold text-primary transition hover:border-primary/50 hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-55"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-surface-container-high px-3 py-2 text-xs font-bold text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_10px_24px_rgba(0,0,0,0.16)] transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-55"
         >
           {status === 'loading' ? <LoaderCircle size={15} className="animate-spin" /> : <RefreshCw size={15} />}
           Reload
@@ -243,14 +246,14 @@ export function CommentThread({
 
       <form onSubmit={submit} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
         {!isLoggedIn ? (
-          <p className="rounded-xl border border-white/10 bg-surface-container px-4 py-3 text-sm text-on-surface-variant md:col-span-2">
+          <p className="rounded-xl bg-surface-container px-4 py-3 text-sm text-on-surface-variant shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_10px_24px_rgba(0,0,0,0.14)] md:col-span-2">
             Login terlebih dahulu untuk menulis komentar.
           </p>
         ) : null}
         {replyingTo ? (
-          <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary md:col-span-2">
+          <div className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_10px_24px_rgba(0,0,0,0.16)] md:col-span-2">
             <p className="min-w-0 truncate font-semibold">Membalas @{replyingTo.username}</p>
-            <button type="button" onClick={cancelReply} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-surface-container-high">
+            <button type="button" onClick={cancelReply} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-surface-container-high shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
               <X size={14} />
             </button>
           </div>
@@ -260,7 +263,7 @@ export function CommentThread({
           value={body}
           onChange={(event) => setBody(event.target.value)}
           disabled={!isLoggedIn || status === 'sending'}
-          className="min-h-11 min-w-0 rounded-xl border border-white/10 bg-surface-container px-4 text-sm outline-none placeholder:text-on-surface-variant/60 focus:border-primary disabled:opacity-55"
+          className="min-h-11 min-w-0 rounded-xl bg-surface-container px-4 text-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_10px_24px_rgba(0,0,0,0.14)] outline-none transition placeholder:text-on-surface-variant/60 focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_3px_rgba(216,178,255,0.16)] disabled:opacity-55"
           placeholder={isLoggedIn ? (replyingTo ? `Balas @${replyingTo.username}` : 'Tulis komentar untuk Naraya') : 'Login untuk menulis komentar'}
         />
         <button
@@ -280,7 +283,7 @@ export function CommentThread({
         {commentTree.roots.map((comment) => renderComment(comment, commentTree.repliesByParent.get(comment.id) ?? []))}
         {status === 'loading' ? <div className="skeleton h-20 rounded-2xl" /> : null}
         {status !== 'loading' && !comments.length ? (
-          <p className="rounded-2xl bg-background/35 p-4 text-sm text-on-surface-variant">{emptyText}</p>
+          <p className="rounded-2xl bg-background/35 p-4 text-sm text-on-surface-variant shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_12px_30px_rgba(0,0,0,0.16)]">{emptyText}</p>
         ) : null}
         {hasMore ? <div ref={sentinelRef} className="h-6" aria-hidden="true" /> : null}
         {status === 'loadingMore' ? <div className="skeleton h-16 rounded-2xl" /> : null}
@@ -289,11 +292,11 @@ export function CommentThread({
   );
 
   if (variant === 'panel') {
-    return <div className="glass-panel mt-8 rounded-2xl p-4">{content}</div>;
+    return <div className="mt-8 rounded-2xl bg-surface-container/82 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_18px_46px_rgba(0,0,0,0.24)] sm:p-4">{content}</div>;
   }
 
   if (variant === 'reader') {
-    return <div className="mx-auto my-8 max-w-4xl rounded-[2rem] bg-surface-container-low/86 p-5 shadow-xl shadow-black/20 ring-1 ring-white/8">{content}</div>;
+    return <div className="mx-auto my-8 max-w-4xl rounded-[2rem] bg-surface-container-low/86 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_20px_54px_rgba(0,0,0,0.26)] sm:p-5">{content}</div>;
   }
 
   return <div>{content}</div>;

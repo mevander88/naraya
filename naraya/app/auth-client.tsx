@@ -79,6 +79,27 @@ export function AuthMenu() {
   );
 }
 
+export function LogoutButton({ className = '', label = 'Logout' }: { className?: string; label?: string }) {
+  const router = useRouter();
+
+  async function logout() {
+    await fetch(apiURL('/auth/logout'), {
+      method: 'POST',
+      credentials: apiCredentials(),
+    }).catch(() => undefined);
+    clearSession();
+    router.push('/login');
+    router.refresh();
+  }
+
+  return (
+    <button type="button" onClick={logout} className={className || 'inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-on-surface-variant transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95'}>
+      <LogOut size={17} />
+      <span className="truncate">{label}</span>
+    </button>
+  );
+}
+
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter();
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');

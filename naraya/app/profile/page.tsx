@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Settings } from 'lucide-react';
 import { AdminMark, isAdminRole } from '../admin-mark';
+import { LogoutButton } from '../auth-client';
 import { CommentHistorySection, LoveHistorySection } from './profile-history-sections';
 
 export const metadata: Metadata = {
@@ -47,11 +48,12 @@ export default async function ProfilePage() {
             )}
           </div>
           <p className="mt-2 max-w-xl break-words text-on-surface-variant">{user.bio}</p>
-          <div className="mt-4 md:hidden">
+          <div className="mt-4 flex flex-wrap gap-3 md:hidden">
             <Link href="/settings" className="inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
               <Settings size={17} />
               <span className="truncate">Settings</span>
             </Link>
+            <LogoutButton className="inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-on-surface-variant transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary active:scale-95" />
           </div>
           <div className="mt-6 grid grid-cols-[repeat(2,minmax(0,1fr))] gap-3 text-center">
             {[
@@ -61,7 +63,10 @@ export default async function ProfilePage() {
               [String(profileStats.loveTotal), 'Love'],
             ].map(([value, label]) => (
               <div key={label} className="min-w-0 rounded-xl bg-surface-container-high p-4">
-                <p className="truncate text-2xl font-bold text-primary">{value}</p>
+                <p className="mx-auto flex w-fit max-w-full min-w-0 flex-col items-center gap-1 text-2xl font-bold text-primary">
+                  <span className="max-w-full truncate">{value}</span>
+                  <span className="h-px w-full rounded-full bg-primary/65 shadow-[0_0_14px_rgba(216,178,255,0.24)]" />
+                </p>
                 <p className="truncate text-xs text-on-surface-variant">{label}</p>
               </div>
             ))}

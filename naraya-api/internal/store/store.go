@@ -170,8 +170,8 @@ func (s *Store) ListLibrary(ctx context.Context, userID, section, contentKind, s
 	}
 	args = append(args, limit+1)
 	rows, err := s.db.Query(ctx, `
-		SELECT id::text, user_id::text, comic_slug, comic_title, COALESCE(content_kind, 'comic'), cover_url, source_url, latest_chapter_slug,
-		       last_chapter_slug, last_chapter_title, status, progress_percent, is_bookmarked,
+		SELECT id::text, user_id::text, comic_slug, comic_title, COALESCE(content_kind, 'comic'), COALESCE(content_status, ''), cover_url, source_url, latest_chapter_slug,
+		       last_chapter_slug, last_chapter_title, status, progress_percent, progress_completed, progress_total, is_bookmarked,
 		       added_at, updated_at, last_read_at
 		FROM naraya_library_items
 		WHERE `+where+`
@@ -211,31 +211,149 @@ func (s *Store) ListLibrary(ctx context.Context, userID, section, contentKind, s
 }
 
 func (s *Store) UpsertLibrary(ctx context.Context, req model.UpsertLibraryRequest) (model.LibraryItem, error) {
-	row := s.db.QueryRow(ctx, `
+	req.ContentStatus = normalizeContentStatus(req.ContentStatus)
+	req.ProgressTotal = normalizeProgressCount(req.ProgressTotal)
+	req.ProgressCompleted = normalizeProgressCount(req.ProgressCompleted)
+	progressVisit := isLibraryProgressVisit(req)
+	if progressVisit {
+		tx, err := s.db.Begin(ctx)
+		if err != nil {
+			return model.LibraryItem{}, err
+		}
+		defer tx.Rollback(ctx)
+
+		completed, total, percent, err := recordLibraryProgress(ctx, tx, req)
+		if err != nil {
+			return model.LibraryItem{}, err
+		}
+		req.ProgressCompleted = completed
+		req.ProgressTotal = total
+		req.ProgressPercent = percent
+		if total > 0 && completed >= total {
+			req.Status = "completed"
+		} else {
+			req.Status = "reading"
+		}
+
+		item, err := upsertLibraryItem(ctx, tx, req)
+		if err != nil {
+			return model.LibraryItem{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return model.LibraryItem{}, err
+		}
+		return item, nil
+	}
+	return upsertLibraryItem(ctx, s.db, req)
+}
+
+type libraryQueryer interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+func upsertLibraryItem(ctx context.Context, q libraryQueryer, req model.UpsertLibraryRequest) (model.LibraryItem, error) {
+	row := q.QueryRow(ctx, `
 		INSERT INTO naraya_library_items (
-			user_id, comic_slug, comic_title, content_kind, cover_url, source_url, latest_chapter_slug,
-			last_chapter_slug, last_chapter_title, status, progress_percent, is_bookmarked, last_read_at
+			user_id, comic_slug, comic_title, content_kind, content_status, cover_url, source_url, latest_chapter_slug,
+			last_chapter_slug, last_chapter_title, status, progress_percent, progress_completed, progress_total, is_bookmarked, last_read_at
 		)
-		VALUES ($1, $2, $3, COALESCE(NULLIF($4, ''), 'comic'), $5, $6, $7, $8, $9, COALESCE(NULLIF($10, ''), 'reading'), $11, $12, now())
+		VALUES ($1, $2, $3, COALESCE(NULLIF($4, ''), 'comic'), COALESCE(NULLIF($5, ''), ''), $6, $7, $8, $9, $10, COALESCE(NULLIF($11, ''), 'reading'), $12, $13, $14, $15, now())
 		ON CONFLICT (user_id, comic_slug) DO UPDATE SET
 			comic_title = EXCLUDED.comic_title,
 			content_kind = EXCLUDED.content_kind,
+			content_status = COALESCE(NULLIF(EXCLUDED.content_status, ''), naraya_library_items.content_status),
 			cover_url = EXCLUDED.cover_url,
 			source_url = EXCLUDED.source_url,
 			latest_chapter_slug = EXCLUDED.latest_chapter_slug,
-			last_chapter_slug = EXCLUDED.last_chapter_slug,
-			last_chapter_title = EXCLUDED.last_chapter_title,
-			status = EXCLUDED.status,
-			progress_percent = EXCLUDED.progress_percent,
+			last_chapter_slug = CASE
+				WHEN EXCLUDED.is_bookmarked = true AND EXCLUDED.status = 'planned' AND EXCLUDED.progress_percent = 0
+				THEN naraya_library_items.last_chapter_slug
+				ELSE EXCLUDED.last_chapter_slug
+			END,
+			last_chapter_title = CASE
+				WHEN EXCLUDED.is_bookmarked = true AND EXCLUDED.status = 'planned' AND EXCLUDED.progress_percent = 0
+				THEN naraya_library_items.last_chapter_title
+				ELSE EXCLUDED.last_chapter_title
+			END,
+			status = CASE
+				WHEN EXCLUDED.is_bookmarked = true AND EXCLUDED.status = 'planned' AND EXCLUDED.progress_percent = 0
+				THEN naraya_library_items.status
+				ELSE EXCLUDED.status
+			END,
+			progress_percent = CASE
+				WHEN EXCLUDED.is_bookmarked = true AND EXCLUDED.status = 'planned' AND EXCLUDED.progress_percent = 0
+				THEN naraya_library_items.progress_percent
+				ELSE EXCLUDED.progress_percent
+			END,
+			progress_completed = CASE
+				WHEN EXCLUDED.is_bookmarked = true AND EXCLUDED.status = 'planned' AND EXCLUDED.progress_percent = 0
+				THEN naraya_library_items.progress_completed
+				WHEN EXCLUDED.progress_completed = 0 AND EXCLUDED.progress_total = 0
+				THEN naraya_library_items.progress_completed
+				ELSE EXCLUDED.progress_completed
+			END,
+			progress_total = CASE
+				WHEN EXCLUDED.is_bookmarked = true AND EXCLUDED.status = 'planned' AND EXCLUDED.progress_percent = 0
+				THEN naraya_library_items.progress_total
+				WHEN EXCLUDED.progress_total = 0
+				THEN naraya_library_items.progress_total
+				ELSE GREATEST(EXCLUDED.progress_total, EXCLUDED.progress_completed, naraya_library_items.progress_total)
+			END,
 			is_bookmarked = naraya_library_items.is_bookmarked OR EXCLUDED.is_bookmarked,
-			last_read_at = now(),
+			last_read_at = CASE
+				WHEN EXCLUDED.is_bookmarked = true AND EXCLUDED.status = 'planned' AND EXCLUDED.progress_percent = 0
+				THEN naraya_library_items.last_read_at
+				ELSE now()
+			END,
 			updated_at = now()
-		RETURNING id::text, user_id::text, comic_slug, comic_title, COALESCE(content_kind, 'comic'), cover_url, source_url, latest_chapter_slug,
-		          last_chapter_slug, last_chapter_title, status, progress_percent, is_bookmarked,
+		RETURNING id::text, user_id::text, comic_slug, comic_title, COALESCE(content_kind, 'comic'), COALESCE(content_status, ''), cover_url, source_url, latest_chapter_slug,
+		          last_chapter_slug, last_chapter_title, status, progress_percent, progress_completed, progress_total, is_bookmarked,
 		          added_at, updated_at, last_read_at
-	`, req.UserID, req.ComicSlug, req.ComicTitle, req.ContentKind, req.CoverURL, req.SourceURL, req.LatestChapterSlug,
-		req.LastChapterSlug, req.LastChapterTitle, req.Status, req.ProgressPercent, req.IsBookmarked)
+	`, req.UserID, req.ComicSlug, req.ComicTitle, req.ContentKind, req.ContentStatus, req.CoverURL, req.SourceURL, req.LatestChapterSlug,
+		req.LastChapterSlug, req.LastChapterTitle, req.Status, req.ProgressPercent, req.ProgressCompleted, req.ProgressTotal, req.IsBookmarked)
 	return scanLibraryItem(row)
+}
+
+func recordLibraryProgress(ctx context.Context, tx pgx.Tx, req model.UpsertLibraryRequest) (int, int, int, error) {
+	_, err := tx.Exec(ctx, `
+		INSERT INTO naraya_library_progress_items (
+			user_id, comic_slug, content_kind, chapter_slug, chapter_title, read_at, updated_at
+		)
+		VALUES ($1, $2, COALESCE(NULLIF($3, ''), 'comic'), $4, $5, now(), now())
+		ON CONFLICT (user_id, comic_slug, chapter_slug) DO UPDATE SET
+			content_kind = EXCLUDED.content_kind,
+			chapter_title = EXCLUDED.chapter_title,
+			read_at = now(),
+			updated_at = now()
+	`, req.UserID, req.ComicSlug, req.ContentKind, req.LastChapterSlug, req.LastChapterTitle)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	var completed, existingTotal int
+	if err := tx.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*)::int FROM naraya_library_progress_items WHERE user_id = $1 AND comic_slug = $2),
+			COALESCE((SELECT progress_total FROM naraya_library_items WHERE user_id = $1 AND comic_slug = $2), 0)
+	`, req.UserID, req.ComicSlug).Scan(&completed, &existingTotal); err != nil {
+		return 0, 0, 0, err
+	}
+
+	total := req.ProgressTotal
+	if total < existingTotal {
+		total = existingTotal
+	}
+	if total < completed {
+		total = completed
+	}
+	percent := 0
+	if total > 0 {
+		percent = (completed*100 + total/2) / total
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	return completed, total, percent, nil
 }
 
 func (s *Store) DeleteLibrary(ctx context.Context, userID, comicSlug string) error {
@@ -253,6 +371,23 @@ func normalizeLibraryLimit(limit int) int {
 	return limit
 }
 
+func normalizeProgressCount(value int) int {
+	if value < 0 {
+		return 0
+	}
+	if value > 100000 {
+		return 100000
+	}
+	return value
+}
+
+func isLibraryProgressVisit(req model.UpsertLibraryRequest) bool {
+	if strings.TrimSpace(req.UserID) == "" || strings.TrimSpace(req.ComicSlug) == "" || strings.TrimSpace(req.LastChapterSlug) == "" || req.ProgressTotal <= 0 {
+		return false
+	}
+	return !(req.IsBookmarked && normalizeLibraryStatus(req.Status) == "planned" && req.ProgressPercent == 0)
+}
+
 func libraryFilter(userID, section, contentKind, status string) (string, []any) {
 	args := []any{userID}
 	conditions := []string{"user_id = $1"}
@@ -266,6 +401,10 @@ func libraryFilter(userID, section, contentKind, status string) (string, []any) 
 		}
 	default:
 		conditions = append(conditions, "is_bookmarked = true")
+		if normalizedStatus := normalizeContentStatus(status); normalizedStatus != "" {
+			args = append(args, normalizedStatus)
+			conditions = append(conditions, fmt.Sprintf("COALESCE(content_status, '') = $%d", len(args)))
+		}
 	}
 	if normalizedKind := normalizeLibraryKind(contentKind); normalizedKind != "" {
 		args = append(args, normalizedKind)
@@ -287,11 +426,30 @@ func normalizeLibraryKind(value string) string {
 
 func normalizeLibraryStatus(value string) string {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "reading", "completed":
+	case "reading", "planned", "completed", "paused", "dropped":
 		return strings.ToLower(strings.TrimSpace(value))
 	default:
 		return ""
 	}
+}
+
+func normalizeContentStatus(value string) string {
+	normalized := slugifyLibraryFilter(value)
+	switch {
+	case strings.Contains(normalized, "ongoing"), strings.Contains(normalized, "on-going"):
+		return "On-Going"
+	case strings.Contains(normalized, "complete"), strings.Contains(normalized, "completed"):
+		return "Completed"
+	default:
+		return ""
+	}
+}
+
+func slugifyLibraryFilter(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	value = strings.ReplaceAll(value, "_", "-")
+	value = strings.ReplaceAll(value, " ", "-")
+	return value
 }
 
 func (s *Store) libraryCounts(ctx context.Context, userID string) (model.LibraryCounts, error) {
@@ -704,9 +862,9 @@ func scanLibraryItem(row rowScanner) (model.LibraryItem, error) {
 	var item model.LibraryItem
 	var lastReadAt pgtype.Timestamptz
 	err := row.Scan(
-		&item.ID, &item.UserID, &item.ComicSlug, &item.ComicTitle, &item.ContentKind, &item.CoverURL, &item.SourceURL,
+		&item.ID, &item.UserID, &item.ComicSlug, &item.ComicTitle, &item.ContentKind, &item.ContentStatus, &item.CoverURL, &item.SourceURL,
 		&item.LatestChapterSlug, &item.LastChapterSlug, &item.LastChapterTitle, &item.Status,
-		&item.ProgressPercent, &item.IsBookmarked, &item.AddedAt, &item.UpdatedAt, &lastReadAt,
+		&item.ProgressPercent, &item.ProgressCompleted, &item.ProgressTotal, &item.IsBookmarked, &item.AddedAt, &item.UpdatedAt, &lastReadAt,
 	)
 	if lastReadAt.Valid {
 		value := time.Time(lastReadAt.Time)

@@ -13,7 +13,7 @@ type LibraryClientProps = {
 
 type LibrarySection = 'favorites' | 'history';
 type TypeFilter = 'All' | 'Anime' | 'Komik';
-type StatusFilter = 'all' | 'reading' | 'completed';
+type StatusFilter = 'all' | 'ongoing' | 'reading' | 'completed';
 type DropdownOption<T extends string> = { id: T; label: string };
 
 const librarySections: Array<{ id: LibrarySection; label: string }> = [
@@ -25,7 +25,12 @@ const typeFilters: Array<DropdownOption<TypeFilter>> = [
   { id: 'Anime', label: 'Anime' },
   { id: 'Komik', label: 'Komik' },
 ];
-const statusFilters: Array<DropdownOption<StatusFilter>> = [
+const favoriteStatusFilters: Array<DropdownOption<StatusFilter>> = [
+  { id: 'all', label: 'Semua status' },
+  { id: 'ongoing', label: 'Ongoing' },
+  { id: 'completed', label: 'Complete' },
+];
+const historyStatusFilters: Array<DropdownOption<StatusFilter>> = [
   { id: 'all', label: 'Semua status' },
   { id: 'reading', label: 'Berjalan' },
   { id: 'completed', label: 'Selesai' },
@@ -35,17 +40,40 @@ function itemKind(item: LibraryItem) {
   return item.contentKind === 'series' ? 'Anime' : 'Komik';
 }
 
-function itemHref(item: LibraryItem) {
+function detailHref(item: LibraryItem) {
+  return item.contentKind === 'series' ? `/series/${item.comicSlug}` : `/komik/${item.comicSlug}`;
+}
+
+function historyHref(item: LibraryItem) {
   if (item.contentKind === 'series') {
     return item.lastChapterSlug ? `/nonton/${item.lastChapterSlug}` : item.latestChapterSlug ? `/nonton/${item.latestChapterSlug}` : `/series/${item.comicSlug}`;
   }
   return item.lastChapterSlug ? `/baca/${item.lastChapterSlug}` : item.latestChapterSlug ? `/baca/${item.latestChapterSlug}` : `/komik/${item.comicSlug}`;
 }
 
+function itemHref(item: LibraryItem, section: LibrarySection) {
+  return section === 'favorites' ? detailHref(item) : historyHref(item);
+}
+
 function itemProgressLabel(item: LibraryItem) {
   if (item.status === 'completed') return 'Selesai';
+  if (item.progressTotal && item.progressCompleted) {
+    const unit = item.contentKind === 'series' ? 'episode' : 'chapter';
+    return `${item.progressCompleted}/${item.progressTotal} ${unit}`;
+  }
   if (item.progressPercent > 0) return `Progress ${item.progressPercent}%`;
   return item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca';
+}
+
+function favoriteLabel(item: LibraryItem) {
+  return item.contentKind === 'series' ? 'Buka detail anime' : 'Buka detail komik';
+}
+
+function contentStatusLabel(value?: string) {
+  const normalized = (value ?? '').toLowerCase();
+  if (normalized.includes('on-going') || normalized.includes('ongoing')) return 'Ongoing';
+  if (normalized.includes('completed') || normalized.includes('complete')) return 'Complete';
+  return '';
 }
 
 function typeQuery(value: TypeFilter) {
@@ -78,7 +106,7 @@ export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) 
       params.set('limit', '24');
       const kind = typeQuery(activeType);
       if (kind) params.set('type', kind);
-      if (activeSection === 'history' && activeStatus !== 'all') params.set('status', activeStatus);
+      if (activeStatus !== 'all') params.set('status', activeStatus);
       if (mode === 'more' && nextCursor) params.set('cursor', nextCursor);
       const response = await fetch(apiURL(`/library?${params.toString()}`), {
         cache: 'no-store',
@@ -134,12 +162,15 @@ export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) 
           comicSlug: item.comicSlug,
           comicTitle: item.comicTitle,
           contentKind: item.contentKind === 'series' ? 'series' : 'comic',
+          contentStatus: item.contentStatus ?? '',
           coverUrl,
           latestChapterSlug: item.latestChapterSlug,
           lastChapterSlug: item.lastChapterSlug,
           lastChapterTitle: item.lastChapterTitle,
           status: item.status,
           progressPercent: item.progressPercent,
+          progressCompleted: item.progressCompleted ?? 0,
+          progressTotal: item.progressTotal ?? 0,
           isBookmarked: item.isBookmarked,
         }),
       });
@@ -164,7 +195,10 @@ export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) 
               <button
                 key={section.id}
                 type="button"
-                onClick={() => setActiveSection(section.id)}
+                onClick={() => {
+                  setActiveSection(section.id);
+                  setActiveStatus('all');
+                }}
                 className={`rounded-full px-4 py-2 text-sm font-bold transition active:scale-95 ${
                   activeSection === section.id
                     ? 'bg-primary text-on-primary shadow-glow'
@@ -183,14 +217,12 @@ export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) 
             options={typeFilters}
             onChange={setActiveType}
           />
-          {activeSection === 'history' ? (
-            <FilterDropdown
-              label="Status"
-              value={activeStatus}
-              options={statusFilters}
-              onChange={setActiveStatus}
-            />
-          ) : null}
+          <FilterDropdown
+            label="Status"
+            value={activeStatus}
+            options={activeSection === 'favorites' ? favoriteStatusFilters : historyStatusFilters}
+            onChange={setActiveStatus}
+          />
         </div>
       </div>
 
@@ -204,9 +236,9 @@ export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) 
         {!loading && items.map((item) => (
           <Link
             key={item.id}
-            href={itemHref(item)}
+            href={itemHref(item, activeSection)}
             className="glass-panel interactive-lift reveal-soft group flex min-w-0 gap-4 rounded-2xl p-4 transition hover:border-primary/40 md:items-center md:p-5"
-            aria-label={`${item.contentKind === 'series' ? 'Buka anime' : 'Buka komik'} ${item.comicTitle}`}
+            aria-label={`${activeSection === 'favorites' ? favoriteLabel(item) : item.contentKind === 'series' ? 'Lanjut nonton' : 'Lanjut baca'} ${item.comicTitle}`}
           >
             <img
               src={coverOverrides[item.id] || item.coverUrl || '/logo.svg'}
@@ -226,6 +258,11 @@ export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) 
                 <span className="inline-flex rounded-full bg-primary/15 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary">
                   {itemKind(item)}
                 </span>
+                {activeSection === 'favorites' && contentStatusLabel(item.contentStatus) ? (
+                  <span className="inline-flex rounded-full bg-white/8 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-on-surface-variant">
+                    {contentStatusLabel(item.contentStatus)}
+                  </span>
+                ) : null}
                 {activeSection === 'history' ? (
                   <span className="inline-flex rounded-full bg-white/8 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] text-on-surface-variant">
                     {item.status === 'completed' ? 'Selesai' : 'Berjalan'}
@@ -233,13 +270,19 @@ export function LibraryClient({ initialPage, suggestions }: LibraryClientProps) 
                 ) : null}
               </div>
               <h3 className="truncate text-xl font-semibold">{item.comicTitle}</h3>
-              <p className="mt-1 break-words text-sm text-on-surface-variant">{item.lastChapterTitle || item.latestChapterSlug || (item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca')} - {itemProgressLabel(item)}</p>
-              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${item.progressPercent}%` }} />
-              </div>
+              {activeSection === 'favorites' ? (
+                <p className="mt-1 break-words text-sm text-on-surface-variant">{favoriteLabel(item)}</p>
+              ) : (
+                <>
+                  <p className="mt-1 break-words text-sm text-on-surface-variant">{item.lastChapterTitle || item.latestChapterSlug || (item.contentKind === 'series' ? 'Belum ditonton' : 'Belum dibaca')} - {itemProgressLabel(item)}</p>
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${item.progressPercent}%` }} />
+                  </div>
+                </>
+              )}
             </div>
             <span className="hidden rounded-xl border border-white/10 px-5 py-3 font-semibold text-primary transition group-hover:border-primary/50 group-hover:bg-primary/10 md:block">
-              {item.contentKind === 'series' ? 'Tonton' : 'Lanjut'}
+              {activeSection === 'favorites' ? 'Detail' : item.contentKind === 'series' ? 'Tonton' : 'Lanjut'}
             </span>
           </Link>
         ))}

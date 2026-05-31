@@ -390,8 +390,12 @@ func slugifyAZLetter(value string) string {
 }
 
 func catalogPath(page int, genre string, comicType string, status string) string {
-	types := "MANGA,MANHUA,MANHWA,DOUJINSHI,ONE-SHOT"
-	if comicType != "" && comicType != "ALL" {
+	const comicTypes = "MANGA,MANHUA,MANHWA,DOUJINSHI,ONE-SHOT"
+	const animeTypes = "TV,BD,MOVIE,ONA,OVA,SPECIAL,LA,MUSIC"
+	types := comicTypes + "," + animeTypes
+	if comicType == "ANIME" {
+		types = animeTypes
+	} else if comicType != "" && comicType != "ALL" {
 		types = comicType
 	}
 	parts := []string{"o:modified", "t:" + types}
@@ -801,7 +805,8 @@ func parseMixCatalog(doc *goquery.Document, client *Client) []model.CatalogItem 
 	doc.Find(".mynimeku-mix-feed__item").Each(func(_ int, card *goquery.Selection) {
 		link := card.Find(".mynimeku-mix-feed__series-title[href], .mynimeku-mix-feed__cover[href]").First()
 		url := client.absolute(attrAny(link, "href"))
-		if !strings.Contains(url, "/komik/") || seen[url] {
+		sourceType := catalogSourceType(url)
+		if sourceType == "" || seen[url] {
 			return
 		}
 		title := cleanText(card.Find(".mynimeku-mix-feed__series-title").First().Text())
@@ -819,16 +824,20 @@ func parseMixCatalog(doc *goquery.Document, client *Client) []model.CatalogItem 
 				genres = append(genres, value)
 			}
 		})
+		itemType := cleanText(card.Find(".mynimeku-mix-feed__type").First().Text())
+		if itemType == "" && sourceType == "series" {
+			itemType = "Anime"
+		}
 		items = append(items, model.CatalogItem{
 			Slug:        slugFromURL(url),
 			URL:         url,
 			Title:       title,
 			Cover:       coverProxyURL(client.absolute(attrAny(card.Find(".mynimeku-mix-feed__cover img").First(), "data-lazy-src", "src"))),
-			Type:        cleanText(card.Find(".mynimeku-mix-feed__type").First().Text()),
+			Type:        itemType,
 			Status:      cleanText(card.Find(".mynimeku-mix-feed__status").First().Text()),
 			Genres:      genres,
 			Description: cleanText(card.Find(".mynimeku-mix-feed__synopsis").First().Text()),
-			SourceType:  "comic",
+			SourceType:  sourceType,
 		})
 	})
 	return items

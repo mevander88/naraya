@@ -19,14 +19,14 @@ type SearchResult = {
 
 const mobileItems = [
   { href: '/', icon: Home, label: 'Home' },
-  { href: '/komik', icon: BookOpen, label: 'Indeks' },
+  { href: '/indeks', icon: BookOpen, label: 'Indeks' },
   { href: '/explore', icon: Compass, label: 'Explore' },
   { href: '/library', icon: Library, label: 'Rak' },
 ];
 
 const desktopItems = [
   { href: '/', icon: Home, label: 'Home' },
-  { href: '/komik', icon: BookOpen, label: 'Indeks' },
+  { href: '/indeks', icon: BookOpen, label: 'Indeks' },
   { href: '/explore', icon: Compass, label: 'Explore' },
   { href: '/library', icon: Library, label: 'Rak' },
   { href: '/profile', icon: User, label: 'Profile' },
@@ -335,7 +335,8 @@ export function NavShell({ children }: { children: React.ReactNode }) {
 
               <div className="flex flex-col gap-4 md:items-end">
                 <div className="flex flex-wrap gap-3">
-                  <Link href="/komik" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Indeks</Link>
+                  <Link href="/anime-indo" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Anime Indo</Link>
+                  <Link href="/indeks" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Indeks</Link>
                   <Link href="/explore" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Explore</Link>
                   <Link href="/library" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Rak</Link>
                   <Link href="/login" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Login</Link>
@@ -344,7 +345,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                 <Link href="/explore" className="inline-flex items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
                   Mulai jelajah
                 </Link>
-                <Link href="/komik" className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
+                <Link href="/indeks" className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
                   Indeks
                 </Link>
                 </div>

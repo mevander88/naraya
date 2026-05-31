@@ -8,33 +8,33 @@ import { CollapsibleInfo, CollapsibleSynopsis } from '../collapsible-detail';
 import { CommentThread } from '../../comment-thread';
 import { EpisodeList } from './episode-list';
 import { ShareButton } from '../../share-button';
+import { JsonLd } from '../../../seo/json-ld';
+import { buildBreadcrumbSchema } from '../../../seo/schema/breadcrumb';
+import { buildTVSeriesSchema } from '../../../seo/schema/tv-series';
+import { buildOpenGraphMetadata, buildTwitterMetadata, trimSocialDescription } from '../../../seo/social';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
+function infoValue(rows: { label: string; value: string }[], label: string) {
+  return rows.find((row) => row.label.trim().toLowerCase() === label.toLowerCase())?.value ?? '';
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const detail = await getSeriesDetail(slug);
   const title = detail?.title || titleFromSlug(slug);
-  const description = detail?.description || `Nonton ${title} di Naraya.`;
-  const image = detail?.cover || '/opengraph-image';
+  const description = detail?.description || `Nonton anime ${title} sub indo di Naraya, anime indo untuk streaming anime, nonton anime id, dan rekomendasi anime dengan player yang nyaman.`;
+  const socialTitle = `${title} | Naraya`;
+  const socialDescription = trimSocialDescription(description);
   return {
     title,
-    description,
+    description: socialDescription,
+    keywords: [title, `nonton ${title}`, `nonton anime ${title}`, `streaming anime ${title}`, `anime ${title} sub indo`, `download anime ${title}`, 'nonton anime', 'anime indo', 'anime sub indo', 'anime id', 'nonton anime id', 'streaming anime', 'nonton anime sub indo', 'anime watch', 'rekomendasi anime', 'anime romance', 'anime harem', 'anime bl', 'web anime', 'web anime gratis'],
     alternates: { canonical: `/series/${slug}` },
-    openGraph: {
-      title: `${title} | Naraya`,
-      description,
-      url: `/series/${slug}`,
-      images: [{ url: image, alt: title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${title} | Naraya`,
-      description,
-      images: [image],
-    },
+    openGraph: buildOpenGraphMetadata({ title: socialTitle, description, path: `/series/${slug}`, type: 'article', imageAlt: title }),
+    twitter: buildTwitterMetadata({ title: socialTitle, description, path: `/series/${slug}`, imageAlt: title }),
   };
 }
 
@@ -49,6 +49,7 @@ export default async function SeriesDetailPage({ params }: PageProps) {
     getLoveStatus(detail.slug),
   ]);
   const latest = detail.episodes[0];
+  const contentStatus = infoValue(detail.info, 'Status');
   const bookmarkSeries = {
     slug: detail.slug,
     title: detail.title,
@@ -56,28 +57,28 @@ export default async function SeriesDetailPage({ params }: PageProps) {
     meta: 'Anime',
     episode: latest?.title ?? 'Belum ada episode',
     kind: 'series',
+    contentStatus,
     latestChapterSlug: latest?.slug,
   };
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'TVSeries',
-    name: detail.title,
-    url: `https://naraya.biz.id/series/${detail.slug}`,
+  const description = detail.description || `Nonton anime ${detail.title} sub indo di Naraya, anime indo untuk streaming anime, nonton anime id, dan rekomendasi anime dengan player yang nyaman.`;
+  const seriesSchema = buildTVSeriesSchema({
+    slug: detail.slug,
+    title: detail.title,
+    description,
     image: detail.cover,
-    description: detail.description,
-    genre: detail.genres,
-    inLanguage: 'id',
-    publisher: {
-      '@type': 'Organization',
-      name: 'Naraya',
-      url: 'https://naraya.biz.id',
-    },
-    numberOfEpisodes: detail.episodes.length,
-  };
+    genres: detail.genres,
+    info: detail.info,
+    episodeCount: detail.episodes.length,
+  });
+  const breadcrumbSchema = buildBreadcrumbSchema([
+    { name: 'Naraya', path: '/' },
+    { name: 'Anime', path: '/indeks?type=Anime' },
+    { name: detail.title, path: `/series/${detail.slug}` },
+  ]);
 
   return (
     <section className="px-container-mobile pb-20 pt-28 md:px-container-desktop">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
+      <JsonLd data={[seriesSchema, breadcrumbSchema]} />
       <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div>
           {detail.cover ? (
@@ -128,12 +129,12 @@ export default async function SeriesDetailPage({ params }: PageProps) {
       <CollapsibleInfo rows={detail.info} />
       <CollapsibleSynopsis text={detail.description || 'Sinopsis belum tersedia untuk series ini.'} />
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
         <div id="episode-list" className="min-w-0">
           <EpisodeList episodes={detail.episodes} />
         </div>
         <aside>
-          <div className="rounded-[2rem] bg-surface-container-low/82 p-5 shadow-xl shadow-black/20 ring-1 ring-white/8">
+          <div className="rounded-[2rem] bg-surface-container-low/82 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_20px_54px_rgba(0,0,0,0.24)] sm:p-5">
             <CommentThread
               comicSlug={detail.slug}
               initialComments={comments.items}

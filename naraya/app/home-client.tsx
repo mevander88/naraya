@@ -112,12 +112,12 @@ function useScrollReveal(dependencies: unknown[]) {
 const HomeStaticSections = memo(function HomeStaticSections({ heroItems, comics, series, genres }: { heroItems: ComicCardData[]; comics: ComicCardData[]; series: ComicCardData[]; genres: string[] }) {
   return (
     <>
-      <TrendingRail title="Sorotan Utama" href="/komik" comics={heroItems.slice(0, 18)} />
+      <TrendingRail title="Sorotan Utama" href="/indeks" comics={heroItems.slice(0, 18)} />
       <GenreChips genres={genres} />
-      <TrendingRail title="Anime Terbaru" href="/komik" comics={series} />
+      <TrendingRail title="Anime Indo Terbaru" href="/anime-indo" comics={series} />
       <TrendingRail title="Komik Trending" href="/explore" comics={comics.slice(0, 18)} />
       <UpdatesGrid title="Update Komik Terbaru" comics={comics} />
-      <UpdatesGrid title="Update Anime Terbaru" comics={series} />
+      <UpdatesGrid title="Update Anime Indo Terbaru" comics={series} />
     </>
   );
 });

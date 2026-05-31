@@ -8,38 +8,33 @@ import { WatchBack } from '../watch-back';
 import { CommentThread } from '../../comment-thread';
 import { AutoBookmarkVisit } from '../../internal-actions';
 import { ShareButton } from '../../share-button';
+import { JsonLd } from '../../../seo/json-ld';
+import { buildBreadcrumbSchema } from '../../../seo/schema/breadcrumb';
+import { buildTVEpisodeSchema } from '../../../seo/schema/tv-episode';
+import { buildVideoObjectSchema } from '../../../seo/schema/video-object';
+import { buildOpenGraphMetadata, buildTwitterMetadata } from '../../../seo/social';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
 
-function progressFromNewestFirst(index: number, total: number) {
-  if (index < 0 || total <= 0) return 0;
-  return Math.max(1, Math.min(100, Math.round(((total - index) / total) * 100)));
+function infoValue(rows: { label: string; value: string }[], label: string) {
+  return rows.find((row) => row.label.trim().toLowerCase() === label.toLowerCase())?.value ?? '';
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const reader = await getEpisodeReader(slug);
   const title = reader?.title || titleFromSlug(slug);
-  const description = `Nonton ${title} di Naraya.`;
-  const image = reader?.cover || '/opengraph-image';
+  const description = `Nonton anime ${title} sub indo di Naraya, anime indo untuk streaming anime, nonton anime id, dan rekomendasi anime dengan player yang nyaman.`;
+  const socialTitle = `${title} | Naraya`;
   return {
     title,
     description,
+    keywords: [title, `nonton ${title}`, `nonton anime ${title}`, `streaming anime ${title}`, `anime ${title} sub indo`, `download anime ${title}`, 'nonton anime', 'anime indo', 'anime sub indo', 'anime id', 'nonton anime id', 'streaming anime', 'nonton anime sub indo', 'anime watch', 'rekomendasi anime', 'anime romance', 'anime harem', 'anime bl', 'web anime', 'web anime gratis'],
     alternates: { canonical: `/nonton/${slug}` },
-    openGraph: {
-      title: `${title} | Naraya`,
-      description,
-      url: `/nonton/${slug}`,
-      images: [{ url: image, alt: title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${title} | Naraya`,
-      description,
-      images: [image],
-    },
+    openGraph: buildOpenGraphMetadata({ title: socialTitle, description, path: `/nonton/${slug}`, type: 'article', imageAlt: title }),
+    twitter: buildTwitterMetadata({ title: socialTitle, description, path: `/nonton/${slug}`, imageAlt: title }),
   };
 }
 
@@ -55,15 +50,42 @@ export default async function WatchEpisodePage({ params }: PageProps) {
   const currentEpisodeLabel = currentEpisode?.number ? `Episode ${currentEpisode.number}` : 'Episode';
   const previousEpisodeLabel = previousEpisode?.number ? `Episode ${previousEpisode.number}` : '';
   const nextEpisodeLabel = nextEpisode?.number ? `Episode ${nextEpisode.number}` : '';
-  const progressPercent = progressFromNewestFirst(episodeIndex, series?.episodes.length ?? 0);
   const [comments, settings] = await Promise.all([
     getComments({ chapterSlug: reader.slug }),
     getSettings(),
   ]);
+  const description = `Nonton anime ${reader.title} sub indo di Naraya, anime indo untuk streaming anime, nonton anime id, dan rekomendasi anime dengan player yang nyaman.`;
+  const directServer = reader.servers.find((server) => server.direct && server.url);
+  const episodeSchema = buildTVEpisodeSchema({
+    slug: reader.slug,
+    title: reader.title,
+    description,
+    image: reader.cover || series?.cover,
+    episodeNumber: currentEpisode?.number,
+    publishedDate: currentEpisode?.date,
+    series: series ? { slug: series.slug, title: series.title } : null,
+    hasVideo: Boolean(reader.playerUrl || reader.servers.length),
+  });
+  const videoSchema = buildVideoObjectSchema({
+    name: reader.title,
+    description,
+    thumbnailUrl: reader.cover || series?.cover,
+    uploadDate: currentEpisode?.date,
+    embedUrl: reader.playerUrl || reader.servers[0]?.url,
+    contentUrl: directServer?.url,
+    pagePath: `/nonton/${reader.slug}`,
+  });
+  const breadcrumbSchema = buildBreadcrumbSchema([
+    { name: 'Naraya', path: '/' },
+    { name: 'Anime', path: '/indeks?type=Anime' },
+    ...(series ? [{ name: series.title, path: `/series/${series.slug}` }] : []),
+    { name: reader.title, path: `/nonton/${reader.slug}` },
+  ]);
 
   return (
     <section className="px-container-mobile pb-20 pt-24 md:px-container-desktop md:pt-28">
-      <WatchBack href={series ? `/series/${series.slug}` : '/komik'} label={series ? 'Detail Anime' : 'Indeks'} />
+      <JsonLd data={[episodeSchema, videoSchema, breadcrumbSchema]} />
+      <WatchBack href={series ? `/series/${series.slug}` : '/indeks'} label={series ? 'Detail Anime' : 'Indeks'} />
       {series ? (
         <AutoBookmarkVisit
           target={{
@@ -72,18 +94,20 @@ export default async function WatchEpisodePage({ params }: PageProps) {
             title: series.title,
             kind: 'series',
             coverUrl: series.cover,
+            contentStatus: infoValue(series.info, 'Status'),
             latestChapterSlug: series.episodes[0]?.slug,
             lastChapterSlug: reader.slug,
             lastChapterTitle: reader.title,
-            status: progressPercent >= 100 ? 'completed' : 'reading',
-            progressPercent,
+            status: 'reading',
+            progressPercent: 0,
+            progressTotal: series.episodes.length,
           }}
         />
       ) : null}
 
       <div className="mb-5 flex flex-wrap items-center gap-3 text-sm font-semibold text-on-surface-variant">
         <Link
-          href={series ? `/series/${series.slug}` : '/komik'}
+          href={series ? `/series/${series.slug}` : '/indeks'}
           className="inline-flex items-center gap-2 rounded-full bg-surface-container-high/78 px-4 py-2 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-primary/12 hover:text-on-surface"
         >
           <ArrowLeft size={16} />
@@ -141,7 +165,7 @@ export default async function WatchEpisodePage({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="mt-8 rounded-[2rem] bg-surface-container-low/72 p-5 shadow-xl shadow-black/18 md:p-6">
+      <div className="mt-8 rounded-[2rem] bg-surface-container-low/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_20px_54px_rgba(0,0,0,0.22)] sm:p-4 lg:p-5">
         <CommentThread
           comicSlug={series?.slug ?? reader.seriesSlug ?? reader.slug}
           chapterSlug={reader.slug}

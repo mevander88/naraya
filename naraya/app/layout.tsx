@@ -15,27 +15,14 @@ const sora = Sora({
   display: 'swap',
 });
 
-const websiteJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'WebSite',
-  name: 'Naraya',
-  url: 'https://naraya.biz.id',
-  description: 'Platform baca komik dan nonton anime dengan katalog genre, update chapter, episode terbaru, reader gambar, dan player yang nyaman.',
-  potentialAction: {
-    '@type': 'SearchAction',
-    target: 'https://naraya.biz.id/explore?q={search_term_string}',
-    'query-input': 'required name=search_term_string',
-  },
-};
-
 export const metadata: Metadata = {
   metadataBase: new URL('https://naraya.biz.id'),
   title: {
-    default: 'Naraya - Baca Komik dan Nonton Anime',
+    default: 'Naraya - Web Anime Indo dan Komik Online',
     template: '%s | Naraya',
   },
-  description: 'Naraya adalah platform baca komik dan nonton anime dengan katalog genre, update chapter, episode terbaru, detail lengkap, reader gambar, dan player yang nyaman.',
-  keywords: ['Naraya', 'komik online', 'baca komik', 'nonton anime', 'anime subtitle indonesia', 'reader komik', 'chapter komik', 'episode anime'],
+  description: 'Naraya adalah web anime indo dan komik online untuk nonton anime, streaming anime sub indo, nonton anime id, baca komik bahasa Indonesia, update episode terbaru, chapter terbaru, dan rekomendasi anime.',
+  keywords: ['Naraya', 'anime', 'komik', 'nonton anime', 'anime indo', 'anime sub indo', 'anime id', 'nonton anime id', 'streaming anime', 'nonton anime sub indo', 'web anime', 'web anime indo', 'web anime gratis', 'nonton anime gratis', 'anime watch', 'download anime', 'rekomendasi anime', 'anime romance', 'anime harem', 'anime bl', 'gachiakuta anime', 'nukitashi anime', 'kurama anime', 'komik online', 'baca komik', 'baca komik bahasa indonesia', 'manga bahasa indonesia', 'anime subtitle indonesia', 'reader komik', 'chapter komik', 'episode anime'],
   applicationName: 'Naraya',
   authors: [{ name: 'Naraya' }],
   creator: 'Naraya',
@@ -48,14 +35,14 @@ export const metadata: Metadata = {
     locale: 'id_ID',
     url: '/',
     siteName: 'Naraya',
-    title: 'Naraya - Baca Komik dan Nonton Anime',
-    description: 'Jelajahi komik, anime, genre, chapter terbaru, episode terbaru, reader gambar, dan player dalam pengalaman Naraya yang fokus.',
+    title: 'Naraya - Web Anime Indo dan Komik Online',
+    description: 'Jelajahi web anime indo untuk nonton anime, streaming anime sub indo, nonton anime id, komik online, rekomendasi anime, genre, chapter terbaru, dan episode terbaru.',
     images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'Naraya' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Naraya - Baca Komik dan Nonton Anime',
-    description: 'Katalog komik dan anime, detail chapter, episode, reader gambar, dan player.',
+    title: 'Naraya - Web Anime Indo dan Komik Online',
+    description: 'Katalog nonton anime, anime indo sub indo, streaming anime, komik online, detail chapter, episode, reader gambar, dan player.',
     images: ['/opengraph-image'],
   },
   robots: {
@@ -74,7 +61,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="id" suppressHydrationWarning className={`dark ${manrope.variable} ${sora.variable}`}>
       <body suppressHydrationWarning className="bg-background font-body text-on-background">
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
         <NavShell>{children}</NavShell>
       </body>
     </html>

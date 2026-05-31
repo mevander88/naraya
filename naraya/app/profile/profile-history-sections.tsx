@@ -22,8 +22,10 @@ export function LoveHistorySection({ loves, total }: { loves: LoveItem[]; total:
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-rose-200">{total} Love</p>
-          {shouldCollapse ? <ToggleButton expanded={expanded} onClick={() => setExpanded((value) => !value)} /> : null}
+          <p className="inline-flex w-fit max-w-full flex-col items-end gap-1 text-sm font-semibold text-rose-200">
+            <span>{total} Love</span>
+            <span className="h-px w-full rounded-full bg-rose-200/65 shadow-[0_0_14px_rgba(251,113,133,0.24)]" />
+          </p>
         </div>
       </div>
       <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2">
@@ -43,6 +45,11 @@ export function LoveHistorySection({ loves, total }: { loves: LoveItem[]; total:
           </div>
         ) : null}
       </div>
+      {shouldCollapse ? (
+        <div className="relative z-10 mt-5 flex justify-center">
+          <ToggleButton expanded={expanded} onClick={() => setExpanded((value) => !value)} />
+        </div>
+      ) : null}
       {!expanded && shouldCollapse ? <FadeOverlay /> : null}
     </section>
   );
@@ -102,8 +109,10 @@ export function CommentHistorySection({ initialPage, library }: { initialPage: C
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-primary">{total} komentar</p>
-          {shouldCollapse ? <ToggleButton expanded={expanded} onClick={() => setExpanded((value) => !value)} /> : null}
+          <p className="inline-flex w-fit max-w-full flex-col items-end gap-1 text-sm font-semibold text-primary">
+            <span>{total} komentar</span>
+            <span className="h-px w-full rounded-full bg-primary/65 shadow-[0_0_14px_rgba(216,178,255,0.24)]" />
+          </p>
         </div>
       </div>
       <div className="mt-5 grid min-w-0 gap-3">
@@ -162,6 +171,11 @@ export function CommentHistorySection({ initialPage, library }: { initialPage: C
           </div>
         ) : null}
       </div>
+      {shouldCollapse ? (
+        <div className="relative z-10 mt-5 flex justify-center">
+          <ToggleButton expanded={expanded} onClick={() => setExpanded((value) => !value)} />
+        </div>
+      ) : null}
       {!expanded && shouldCollapse ? <FadeOverlay /> : null}
     </section>
   );

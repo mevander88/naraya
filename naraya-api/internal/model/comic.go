@@ -103,7 +103,7 @@ type HomePayload struct {
 
 type CatalogItem struct {
 	Slug        string   `json:"slug"`
-	URL         string   `json:"url,omitempty"`
+	URL         string   `json:"-"`
 	Title       string   `json:"title,omitempty"`
 	Cover       string   `json:"cover,omitempty"`
 	Type        string   `json:"type,omitempty"`

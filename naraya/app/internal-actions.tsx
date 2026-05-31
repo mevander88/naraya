@@ -12,7 +12,14 @@ function hasSessionHint() {
     .some((row) => row.startsWith('naraya_user='));
 }
 
-export function BookmarkButton({ comic, variant = 'icon', initialStatus }: { comic: ComicCardData; variant?: 'icon' | 'button'; initialStatus?: FavoriteStatus }) {
+function contentStatusFromMeta(value?: string) {
+  const normalized = (value ?? '').toLowerCase();
+  if (normalized.includes('on-going') || normalized.includes('ongoing')) return 'On-Going';
+  if (normalized.includes('completed') || normalized.includes('complete')) return 'Completed';
+  return '';
+}
+
+export function BookmarkButton({ comic, variant = 'icon', initialStatus, deferSessionCheck = false }: { comic: ComicCardData; variant?: 'icon' | 'button'; initialStatus?: FavoriteStatus; deferSessionCheck?: boolean }) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>(initialStatus?.favorited ? 'saved' : 'idle');
   const [count, setCount] = useState(initialStatus?.count ?? 0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -20,12 +27,14 @@ export function BookmarkButton({ comic, variant = 'icon', initialStatus }: { com
   const shouldShowCount = typeof initialStatus !== 'undefined';
 
   useEffect(() => {
+    if (deferSessionCheck) return;
     setIsLoggedIn(hasSessionHint());
-  }, []);
+  }, [deferSessionCheck]);
 
   async function save() {
     if (state === 'saved' || state === 'saving') return;
-    if (!isLoggedIn) {
+    const loggedIn = deferSessionCheck ? hasSessionHint() : isLoggedIn;
+    if (!loggedIn) {
       setShowLoginPrompt(true);
       return;
     }
@@ -41,6 +50,7 @@ export function BookmarkButton({ comic, variant = 'icon', initialStatus }: { com
           comicSlug: comic.slug,
           comicTitle: comic.title,
           contentKind: comic.kind === 'series' ? 'series' : 'comic',
+          contentStatus: comic.contentStatus ?? contentStatusFromMeta(comic.meta),
           coverUrl: comic.image,
           latestChapterSlug: comic.latestChapterSlug ?? '',
           lastChapterSlug: comic.latestChapterSlug ?? '',
@@ -69,13 +79,14 @@ export function BookmarkButton({ comic, variant = 'icon', initialStatus }: { com
   return (
     <>
       <button
+        type="button"
         onClick={save}
         disabled={state === 'saved' || state === 'saving'}
         className={variant === 'button'
           ? 'interactive-lift inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95 disabled:cursor-default disabled:opacity-85'
-          : 'rounded-lg bg-black/70 p-2 text-primary backdrop-blur transition hover:bg-primary hover:text-on-primary disabled:cursor-default disabled:opacity-85'}
+          : 'rounded-lg bg-black/70 p-2 text-primary transition hover:bg-primary hover:text-on-primary disabled:cursor-default disabled:opacity-85'}
         aria-label={`Simpan ${comic.title}`}
-        title={!isLoggedIn ? 'Login dulu untuk memasukkan ke rak bacaan' : state === 'saved' ? 'Tersimpan' : 'Simpan ke rak bacaan'}
+        title={!deferSessionCheck && !isLoggedIn ? 'Login dulu untuk memasukkan ke rak bacaan' : state === 'saved' ? 'Tersimpan' : 'Simpan ke rak bacaan'}
       >
         <Bookmark size={17} fill={state === 'saved' ? 'currentColor' : 'none'} />
         {variant === 'button' ? <span>{state === 'saved' ? 'Tersimpan' : state === 'saving' ? 'Menyimpan...' : 'Simpan'}</span> : null}
@@ -185,11 +196,13 @@ type AutoBookmarkTarget = {
   title: string;
   kind?: string;
   coverUrl?: string;
+  contentStatus?: string;
   latestChapterSlug?: string;
   lastChapterSlug?: string;
   lastChapterTitle?: string;
   status?: string;
   progressPercent?: number;
+  progressTotal?: number;
 };
 
 export function AutoBookmarkVisit({ target }: { target: AutoBookmarkTarget }) {
@@ -209,12 +222,14 @@ export function AutoBookmarkVisit({ target }: { target: AutoBookmarkTarget }) {
         comicSlug: target.slug,
         comicTitle: target.title,
         contentKind: target.kind === 'series' ? 'series' : 'comic',
+        contentStatus: target.contentStatus ?? '',
         coverUrl: target.coverUrl ?? '',
         latestChapterSlug: target.latestChapterSlug ?? target.lastChapterSlug ?? '',
         lastChapterSlug: target.lastChapterSlug ?? target.latestChapterSlug ?? '',
         lastChapterTitle: target.lastChapterTitle ?? '',
         status: target.status ?? 'reading',
         progressPercent: clampProgress(target.progressPercent),
+        progressTotal: clampProgressTotal(target.progressTotal),
         isBookmarked: false,
       }),
     }).catch(() => {
@@ -228,6 +243,11 @@ export function AutoBookmarkVisit({ target }: { target: AutoBookmarkTarget }) {
 function clampProgress(value?: number) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function clampProgressTotal(value?: number) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(100000, Math.round(value)));
 }
 
 export function CommentComposer({ comicSlug = '', chapterSlug = '', variant = 'panel' }: { comicSlug?: string; chapterSlug?: string; variant?: 'panel' | 'embedded' }) {

@@ -1,4 +1,6 @@
 import type { ChapterData, ComicCardData, ComicDetailData, SeriesDetailData, SeriesEpisodeData } from '../data';
+import { buildComicSeriesSchema } from '../../seo/schema/comic-series';
+import { buildTVSeriesSchema } from '../../seo/schema/tv-series';
 
 const SITE_URL = 'https://naraya.biz.id';
 const AMP_BOILERPLATE = 'body{-webkit-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-moz-animation:-amp-start 8s steps(1,end) 0s 1 normal both;-ms-animation:-amp-start 8s steps(1,end) 0s 1 normal both;animation:-amp-start 8s steps(1,end) 0s 1 normal both}@-webkit-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-moz-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-ms-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@-o-keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}@keyframes -amp-start{from{visibility:hidden}to{visibility:visible}}';
@@ -66,8 +68,8 @@ export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[]
   const heroPath = hero ? `/${hero.kind === 'series' ? 'series' : 'komik'}/${hero.slug}` : '/';
   const heroURL = mainURLWithAmpBypass(heroPath);
   return ampResponse({
-    title: 'Naraya - Baca Komik dan Nonton Anime',
-    description: 'Naraya adalah platform baca komik dan nonton anime dengan katalog genre, chapter terbaru, episode terbaru, reader, dan player.',
+    title: 'Naraya - Nonton Anime Indo dan Komik Online',
+    description: 'Naraya adalah web anime indo dan komik online untuk nonton anime, anime indo, anime sub indo, streaming anime, nonton anime id, rekomendasi anime, baca komik bahasa Indonesia, chapter terbaru, dan episode terbaru.',
     canonicalPath: '/',
     image: hero?.image,
     jsonLd: {
@@ -75,7 +77,7 @@ export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[]
       '@type': 'WebSite',
       name: 'Naraya',
       url: SITE_URL,
-      description: 'Platform baca komik dan nonton anime.',
+      description: 'Web anime indo dan komik online untuk nonton anime, anime sub indo, dan streaming anime.',
     },
     body: `
       <section class="hero">
@@ -97,23 +99,13 @@ export function renderHomeAmp(featured: ComicCardData[], comics: ComicCardData[]
 }
 
 export function renderComicAmp(detail: ComicDetailData) {
-  const description = detail.description || `Baca detail ${detail.title}, genre, status, dan daftar chapter di Naraya.`;
+  const description = detail.description || `Baca komik ${detail.title} bahasa Indonesia, komik online dengan genre, status, dan daftar chapter di Naraya.`;
   return ampResponse({
     title: `${detail.title} | Naraya`,
     description,
     canonicalPath: `/komik/${detail.slug}`,
     image: detail.cover,
-    jsonLd: {
-      '@context': 'https://schema.org',
-      '@type': 'ComicSeries',
-      name: detail.title,
-      url: `${SITE_URL}/komik/${detail.slug}`,
-      image: absoluteURL(detail.cover),
-      description,
-      genre: detail.genres,
-      inLanguage: 'id',
-      publisher: { '@type': 'Organization', name: 'Naraya', url: SITE_URL },
-    },
+    jsonLd: buildComicSeriesSchema({ slug: detail.slug, title: detail.title, description, image: detail.cover, genres: detail.genres, info: detail.info }),
     body: `
       ${renderDetailHeader({
         title: detail.title,
@@ -131,24 +123,13 @@ export function renderComicAmp(detail: ComicDetailData) {
 }
 
 export function renderSeriesAmp(detail: SeriesDetailData) {
-  const description = detail.description || `Nonton ${detail.title} di Naraya.`;
+  const description = detail.description || `Nonton anime ${detail.title} sub indo di Naraya, anime indo untuk streaming anime, nonton anime id, dan rekomendasi anime dengan player yang nyaman.`;
   return ampResponse({
     title: `${detail.title} | Naraya`,
     description,
     canonicalPath: `/series/${detail.slug}`,
     image: detail.cover,
-    jsonLd: {
-      '@context': 'https://schema.org',
-      '@type': 'TVSeries',
-      name: detail.title,
-      url: `${SITE_URL}/series/${detail.slug}`,
-      image: absoluteURL(detail.cover),
-      description,
-      genre: detail.genres,
-      inLanguage: 'id',
-      publisher: { '@type': 'Organization', name: 'Naraya', url: SITE_URL },
-      numberOfEpisodes: detail.episodes.length,
-    },
+    jsonLd: buildTVSeriesSchema({ slug: detail.slug, title: detail.title, description, image: detail.cover, genres: detail.genres, info: detail.info, episodeCount: detail.episodes.length }),
     body: `
       ${renderDetailHeader({
         title: detail.title,

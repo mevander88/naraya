@@ -28,8 +28,22 @@ type ExploreClientProps = {
   matureFilter?: boolean;
 };
 
+const TYPE_FILTER_OPTIONS = ['All', 'Anime', 'MANGA', 'MANHUA', 'MANHWA', 'ONE-SHOT'];
+
 function normalizeItems(items: CatalogItem[]) {
-  return items.map((item) => ({ ...item, cover: mediaURL(item.cover), description: '' }));
+  return items.map((item) => ({
+    slug: item.slug,
+    title: item.title,
+    cover: mediaURL(item.cover),
+    type: item.type,
+    status: item.status,
+    genres: item.genres,
+    description: '',
+    lastMod: item.lastMod,
+    kind: item.kind,
+    count: item.count,
+    latestChapterSlug: item.latestChapterSlug,
+  }));
 }
 
 function buildQuery(filters: ExploreFilters, page: number) {
@@ -48,9 +62,18 @@ function buildExploreURL(filters: ExploreFilters) {
   return value ? `/explore?${value}` : '/explore';
 }
 
+function normalizeFilterOption(value: string | null, values: string[]) {
+  const normalized = value?.trim() ?? '';
+  if (!normalized) return 'All';
+  return values.find((item) => item.toLowerCase() === normalized.toLowerCase()) ?? normalized;
+}
+
 function itemMatchesActiveFilters(item: CatalogItem, filters: ExploreFilters) {
   if (filters.genre !== 'All' && !(item.genres ?? []).some((genre) => genre.toLowerCase() === filters.genre.toLowerCase())) {
     return false;
+  }
+  if (filters.type !== 'All' && filters.type.toLowerCase() === 'anime') {
+    return item.kind === 'series' || (item.type ?? '').toLowerCase() === 'anime';
   }
   if (filters.type !== 'All' && (item.type ?? '').toLowerCase() !== filters.type.toLowerCase()) {
     return false;
@@ -89,6 +112,7 @@ function CardSkeleton() {
 
 export function ExploreClient({ initialItems, initialPage, totalPages, genres, initialFilters, matureFilter = false }: ExploreClientProps) {
   const initialVisibleItems = useMemo(() => applyMatureFilter(normalizeItems(initialItems), matureFilter), [initialItems, matureFilter]);
+  const initialFiltersKey = useMemo(() => JSON.stringify(initialFilters), [initialFilters.genre, initialFilters.query, initialFilters.status, initialFilters.type]);
   const [filters, setFilters] = useState(initialFilters);
   const [searchValue, setSearchValue] = useState(initialFilters.query);
   const [items, setItems] = useState<CatalogItem[]>(() => initialVisibleItems);
@@ -102,17 +126,31 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
   const loadingRef = useRef(false);
   const requestedPagesRef = useRef(new Set<number>());
 
+  useEffect(() => {
+    setFilters(initialFilters);
+    setSearchValue(initialFilters.query);
+    setItems(initialVisibleItems);
+    setPage(initialPage);
+    setMaxPage(totalPages);
+    setLoadingFirstPage(false);
+    setLoadingMore(false);
+    setSearchPending(false);
+    setEmptyAfterResponse(initialVisibleItems.length === 0);
+    loadingRef.current = false;
+    requestedPagesRef.current = new Set<number>();
+  }, [initialFiltersKey, initialVisibleItems, initialPage, totalPages]);
+
   async function fetchCatalog(nextFilters: ExploreFilters, nextPage: number): Promise<CatalogPayload | null> {
     if (nextFilters.query) {
       const query = new URLSearchParams({ q: nextFilters.query });
-      const response = await fetch(apiURL(`/search?${query.toString()}`));
+      const response = await fetch(apiURL(`/search?${query.toString()}`), { cache: 'no-store' });
       if (!response.ok) return null;
       const payload = (await response.json()) as CatalogPayload;
       const items = applyMatureFilter(normalizeItems(payload.items ?? []).filter((item) => itemMatchesActiveFilters(item, nextFilters)), matureFilter);
       return { page: 1, totalPages: 1, items };
     }
 
-    const response = await fetch(apiURL(`/comics/catalog?${buildQuery(nextFilters, nextPage).toString()}`));
+    const response = await fetch(apiURL(`/comics/catalog?${buildQuery(nextFilters, nextPage).toString()}`), { cache: 'no-store' });
     if (!response.ok) return null;
     const payload = (await response.json()) as CatalogPayload;
     return { ...payload, items: applyMatureFilter(normalizeItems(payload.items ?? []), matureFilter) };
@@ -165,9 +203,9 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
     function handlePopState() {
       const params = new URLSearchParams(window.location.search);
       const nextFilters = {
-        genre: params.get('genre') ?? 'All',
-        type: params.get('type') ?? 'All',
-        status: params.get('status') ?? 'All',
+        genre: normalizeFilterOption(params.get('genre'), genres),
+        type: normalizeFilterOption(params.get('type'), TYPE_FILTER_OPTIONS),
+        status: normalizeFilterOption(params.get('status'), ['All', 'On-Going', 'Completed']),
         query: params.get('q')?.trim() ?? '',
       };
       setSearchValue(nextFilters.query);
@@ -237,7 +275,7 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
         <FilterSelect
           label="Tipe"
           value={filters.type}
-          values={['All', 'MANGA', 'MANHUA', 'MANHWA', 'ONE-SHOT']}
+          values={TYPE_FILTER_OPTIONS}
           optionLabel={(type) => (type === 'All' ? 'Semua Tipe' : type)}
           onChange={(type) => void changeFilter({ type })}
         />
@@ -251,18 +289,19 @@ export function ExploreClient({ initialItems, initialPage, totalPages, genres, i
       ) : (
         <div className="mt-9 grid grid-cols-2 gap-x-5 gap-y-7 md:grid-cols-4 md:gap-x-6 lg:grid-cols-5">
           {visibleItems.map((item, index) => (
-            <ComicCard
-              key={`${item.slug}-${index}`}
-              comic={{
-                slug: item.slug,
-                title: item.title || item.slug.replaceAll('-', ' '),
-                image: item.cover || '/logo.svg',
-                kind: item.kind,
-                latestChapterSlug: item.latestChapterSlug,
-                meta: [item.kind === 'series' ? 'Anime' : item.type, item.status, ...(item.genres ?? []).slice(0, 2)].filter(Boolean).join(' - '),
-                episode: (item.genres ?? []).slice(0, 3).join(' - ') || (item.kind === 'series' ? 'Buka detail untuk daftar episode.' : 'Buka detail untuk daftar chapter.'),
-              }}
-            />
+            <div key={`${item.slug}-${index}`} className="card-content-visibility min-w-0">
+              <ComicCard
+                comic={{
+                  slug: item.slug,
+                  title: item.title || item.slug.replaceAll('-', ' '),
+                  image: item.cover || '/logo.svg',
+                  kind: item.kind,
+                  latestChapterSlug: item.latestChapterSlug,
+                  meta: [item.kind === 'series' ? 'Anime' : item.type, item.status, ...(item.genres ?? []).slice(0, 2)].filter(Boolean).join(' - '),
+                  episode: (item.genres ?? []).slice(0, 3).join(' - ') || (item.kind === 'series' ? 'Buka detail untuk daftar episode.' : 'Buka detail untuk daftar chapter.'),
+                }}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -297,18 +336,21 @@ function FilterRow({
 }) {
   return (
     <div className={`hide-scrollbar flex gap-3 overflow-x-auto pb-2 ${className}`}>
-      {values.map((value) => (
-        <button
-          key={value}
-          type="button"
-          onClick={() => onSelect(value)}
-          className={`shrink-0 rounded-full px-5 py-2 text-sm font-medium transition active:scale-95 ${
-            active === value ? 'bg-primary text-on-primary' : 'border border-white/5 bg-surface-container-high text-on-surface-variant hover:bg-surface-variant hover:text-primary'
-          }`}
-        >
-          {label(value)}
-        </button>
-      ))}
+      {values.map((value) => {
+        const isActive = active.toLowerCase() === value.toLowerCase();
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onSelect(value)}
+            className={`shrink-0 rounded-full px-5 py-2 text-sm font-medium transition active:scale-95 ${
+              isActive ? 'bg-primary text-on-primary' : 'border border-white/5 bg-surface-container-high text-on-surface-variant hover:bg-surface-variant hover:text-primary'
+            }`}
+          >
+            {label(value)}
+          </button>
+        );
+      })}
     </div>
   );
 }

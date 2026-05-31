@@ -7,6 +7,10 @@ import { ChapterList } from './chapter-list';
 import { CollapsibleInfo, CollapsibleSynopsis } from '../../series/collapsible-detail';
 import { CommentThread } from '../../comment-thread';
 import { ShareButton } from '../../share-button';
+import { JsonLd } from '../../../seo/json-ld';
+import { buildBreadcrumbSchema } from '../../../seo/schema/breadcrumb';
+import { buildComicSeriesSchema } from '../../../seo/schema/comic-series';
+import { buildOpenGraphMetadata, buildTwitterMetadata, trimSocialDescription } from '../../../seo/social';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -16,24 +20,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { slug } = await params;
   const detail = await getComicDetail(slug);
   const title = detail?.title || titleFromSlug(slug);
-  const description = detail?.description || `Baca detail ${title}, genre, status, dan daftar chapter di Naraya.`;
-  const image = detail?.cover || '/opengraph-image';
+  const description = detail?.description || `Baca komik ${title} bahasa Indonesia, komik online dengan genre, status, dan daftar chapter di Naraya.`;
+  const socialTitle = `${title} | Naraya`;
+  const socialDescription = trimSocialDescription(description);
   return {
     title,
-    description,
+    description: socialDescription,
+    keywords: [title, `baca ${title}`, `baca komik ${title}`, `komik ${title} bahasa indonesia`, 'komik online', 'baca komik', 'baca komik bahasa indonesia', 'manga bahasa indonesia'],
     alternates: { canonical: `/komik/${slug}` },
-    openGraph: {
-      title: `${title} | Naraya`,
-      description,
-      url: `/komik/${slug}`,
-      images: [{ url: image, alt: title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${title} | Naraya`,
-      description,
-      images: [image],
-    },
+    openGraph: buildOpenGraphMetadata({ title: socialTitle, description, path: `/komik/${slug}`, type: 'article', imageAlt: title }),
+    twitter: buildTwitterMetadata({ title: socialTitle, description, path: `/komik/${slug}`, imageAlt: title }),
   };
 }
 
@@ -54,27 +50,27 @@ export default async function ComicDetailPage({ params }: PageProps) {
     image: detail.cover,
     meta: [detail.type, detail.status].filter(Boolean).join(' - '),
     episode: latest?.title ?? 'Belum ada chapter',
+    contentStatus: detail.status,
     latestChapterSlug: latest?.slug,
   };
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'ComicSeries',
-    name: detail.title,
-    url: `https://naraya.biz.id/komik/${detail.slug}`,
+  const description = detail.description || `Baca komik ${detail.title} bahasa Indonesia, komik online dengan genre, status, dan daftar chapter di Naraya.`;
+  const comicSchema = buildComicSeriesSchema({
+    slug: detail.slug,
+    title: detail.title,
+    description,
     image: detail.cover,
-    description: detail.description,
-    genre: detail.genres,
-    inLanguage: 'id',
-    publisher: {
-      '@type': 'Organization',
-      name: 'Naraya',
-      url: 'https://naraya.biz.id',
-    },
-  };
+    genres: detail.genres,
+    info: detail.info,
+  });
+  const breadcrumbSchema = buildBreadcrumbSchema([
+    { name: 'Naraya', path: '/' },
+    { name: 'Komik', path: '/indeks' },
+    { name: detail.title, path: `/komik/${detail.slug}` },
+  ]);
 
   return (
     <section className="px-container-mobile pb-20 pt-28 md:px-container-desktop">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
+      <JsonLd data={[comicSchema, breadcrumbSchema]} />
       <div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div>
           <img src={detail.cover} alt={detail.title} width={280} height={420} fetchPriority="high" decoding="async" className="reveal-soft aspect-[2/3] w-full rounded-2xl object-cover shadow-glow" />
@@ -118,12 +114,12 @@ export default async function ComicDetailPage({ params }: PageProps) {
       <CollapsibleInfo rows={detail.info} title="Info Komik" />
       <CollapsibleSynopsis text={detail.description || 'Sinopsis belum tersedia untuk komik ini.'} />
 
-      <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="mt-12 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
         <div id="chapter-list" className="min-w-0">
           <ChapterList chapters={detail.chapters} />
         </div>
         <aside>
-          <div className="rounded-[2rem] bg-surface-container-low/82 p-5 shadow-xl shadow-black/20">
+          <div className="rounded-[2rem] bg-surface-container-low/82 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_20px_54px_rgba(0,0,0,0.24)] sm:p-5">
             <CommentThread
               comicSlug={detail.slug}
               initialComments={comments.items}

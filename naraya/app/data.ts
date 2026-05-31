@@ -8,6 +8,7 @@ export type ComicCardData = {
   image: string;
   kind?: string;
   badge?: string;
+  contentStatus?: string;
   latestChapterSlug?: string;
 };
 
@@ -102,7 +103,6 @@ type ApiComic = {
 
 export type CatalogItem = {
   slug: string;
-  url?: string;
   title?: string;
   cover?: string;
   type?: string;
@@ -144,12 +144,15 @@ export type LibraryItem = {
   comicSlug: string;
   comicTitle: string;
   contentKind?: string;
+  contentStatus?: string;
   coverUrl: string;
   latestChapterSlug: string;
   lastChapterSlug: string;
   lastChapterTitle: string;
   status: string;
   progressPercent: number;
+  progressCompleted?: number;
+  progressTotal?: number;
   isBookmarked: boolean;
   updatedAt: string;
   lastReadAt?: string;
@@ -319,8 +322,25 @@ function mapApiComic(item: ApiComic, index: number, fallbackKind: string, badge?
     meta: [item.type || (fallbackKind === 'series' ? 'Anime' : ''), item.status].filter(Boolean).join(' - '),
     episode: item.latestChapter?.title ?? item.updatedAt,
     kind: item.kind || fallbackKind,
+    contentStatus: item.status,
     latestChapterSlug: item.latestChapter?.slug,
     badge: index === 0 ? badge : undefined,
+  };
+}
+
+function sanitizeCatalogItem(item: CatalogItem): CatalogItem {
+  return {
+    slug: item.slug,
+    title: item.title,
+    cover: item.cover ? mediaURL(item.cover) : item.cover,
+    type: item.type,
+    status: item.status,
+    genres: item.genres,
+    description: item.description,
+    lastMod: item.lastMod,
+    kind: item.kind,
+    count: item.count,
+    latestChapterSlug: item.latestChapterSlug,
   };
 }
 
@@ -338,7 +358,7 @@ export async function getHomeData(): Promise<{ featured: ComicCardData[]; comics
       featured: (payload.featured ?? []).map((item, index) => mapApiComic(item, index, item.kind || 'comic', '#Featured')),
       comics: (payload.comics ?? []).map((item, index) => mapApiComic(item, index, 'comic', '#1 Komik')),
       series: (payload.series ?? []).map((item, index) => mapApiComic(item, index, 'series', '#1 Anime')),
-      genres: payload.genres ?? [],
+      genres: (payload.genres ?? []).map(sanitizeCatalogItem),
     };
   } catch {
     return { featured: [], comics: [], series: [], genres: [] };
@@ -352,7 +372,7 @@ export async function getCatalogItems(page = 1, filters: { genre?: string; type?
     if (filters.type && filters.type !== 'All') query.set('type', filters.type);
     if (filters.status && filters.status !== 'All') query.set('status', filters.status);
     const response = await fetch(`${apiBaseURL()}/comics/catalog?${query.toString()}`, {
-      next: { revalidate: 3600 },
+      cache: 'no-store',
       headers: internalHeaders(),
     });
     if (!response.ok) {
@@ -362,8 +382,7 @@ export async function getCatalogItems(page = 1, filters: { genre?: string; type?
     return {
       ...payload,
       items: (payload.items ?? []).map((item) => ({
-        ...item,
-        cover: item.cover ? mediaURL(item.cover) : item.cover,
+        ...sanitizeCatalogItem(item),
         description: '',
       })),
     };
@@ -386,10 +405,7 @@ export async function getAZCatalogItems(page = 1, letter = 'All'): Promise<{ pag
     const payload = (await response.json()) as { page: number; totalPages: number; totalItems?: string; items: CatalogItem[] };
     return {
       ...payload,
-      items: (payload.items ?? []).map((item) => ({
-        ...item,
-        cover: item.cover ? mediaURL(item.cover) : item.cover,
-      })),
+      items: (payload.items ?? []).map(sanitizeCatalogItem),
     };
   } catch {
     return { page, totalPages: 1, items: [] };
@@ -585,6 +601,11 @@ function normalizeCommentPage(payload: Partial<CommentPageData>): CommentPageDat
   };
 }
 
+function infoRowValue(rows: InfoRowData[] = [], label: string): string {
+  const normalizedLabel = label.trim().toLowerCase();
+  return rows.find((row) => row.label.trim().toLowerCase() === normalizedLabel)?.value ?? '';
+}
+
 export async function getComicDetail(slug: string): Promise<ComicDetailData | null> {
   try {
     const response = await fetch(`${apiBaseURL()}/comics/${slug}`, {
@@ -593,7 +614,7 @@ export async function getComicDetail(slug: string): Promise<ComicDetailData | nu
     });
     if (!response.ok) return null;
     const detail = (await response.json()) as ComicDetailData;
-    return { ...detail, cover: mediaURL(detail.cover) };
+    return { ...detail, cover: mediaURL(detail.cover), status: detail.status || infoRowValue(detail.info, 'Status') };
   } catch {
     return null;
   }
@@ -672,7 +693,7 @@ export async function getGenreItems(): Promise<CatalogItem[]> {
     });
     if (!response.ok) return [];
     const payload = (await response.json()) as { items?: CatalogItem[] };
-    return payload.items ?? [];
+    return (payload.items ?? []).map(sanitizeCatalogItem);
   } catch {
     return [];
   }
@@ -686,7 +707,62 @@ export async function getSitemapCatalogItems(): Promise<CatalogItem[]> {
     });
     if (!response.ok) return [];
     const payload = (await response.json()) as { items?: CatalogItem[] };
-    return payload.items ?? [];
+    return (payload.items ?? []).map(sanitizeCatalogItem);
+  } catch {
+    return [];
+  }
+}
+
+export async function getSitemapSeriesItems(maxPages = 25): Promise<CatalogItem[]> {
+  try {
+    const firstResponse = await fetch(`${apiBaseURL()}/series/latest?page=1`, {
+      cache: 'no-store',
+      headers: internalHeaders(),
+    });
+    if (!firstResponse.ok) return [];
+
+    const firstPayload = (await firstResponse.json()) as { page?: number; totalPages?: number; items?: ApiComic[] };
+    const totalPages = Math.max(1, Math.min(firstPayload.totalPages ?? 1, maxPages));
+    const payloads = [firstPayload];
+
+    if (totalPages > 1) {
+      const rest = await Promise.all(
+        Array.from({ length: totalPages - 1 }, async (_, index) => {
+          const page = index + 2;
+          try {
+            const response = await fetch(`${apiBaseURL()}/series/latest?page=${page}`, {
+              cache: 'no-store',
+              headers: internalHeaders(),
+            });
+            if (!response.ok) return null;
+            return (await response.json()) as { items?: ApiComic[] };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      payloads.push(...rest.filter((payload): payload is { items?: ApiComic[] } => Boolean(payload)));
+    }
+
+    const seen = new Set<string>();
+    const items: CatalogItem[] = [];
+    payloads.forEach((payload) => {
+      (payload.items ?? []).forEach((item) => {
+        if (!item.slug || seen.has(item.slug)) return;
+        seen.add(item.slug);
+        items.push({
+          slug: item.slug,
+          title: item.title,
+          cover: item.cover ? mediaURL(item.cover) : item.cover,
+          type: item.type,
+          status: item.status,
+          lastMod: '',
+          kind: 'series',
+          latestChapterSlug: item.latestChapter?.slug,
+        });
+      });
+    });
+    return items;
   } catch {
     return [];
   }

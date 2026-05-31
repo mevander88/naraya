@@ -93,11 +93,11 @@ export const ComicCard = memo(function ComicCard({ comic, priority = false }: { 
   return (
     <article className="group relative w-full min-w-0 shrink-0 snap-start cursor-pointer">
       <Link href={href} className="relative mb-3 block aspect-[2/3] overflow-hidden rounded-xl border border-white/5">
-          <img src={comic.image} alt={comic.title} width={224} height={336} loading={priority ? 'eager' : 'lazy'} fetchPriority={priority ? 'high' : 'auto'} decoding="async" sizes="(max-width: 768px) 44vw, 224px" className="image-render-safe h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+          <img src={comic.image} alt={comic.title} width={224} height={336} loading={priority ? 'eager' : 'lazy'} fetchPriority={priority ? 'high' : 'auto'} decoding="async" sizes="(max-width: 768px) 44vw, 224px" className="card-scroll-media image-render-safe h-full w-full object-cover transition duration-500 group-hover:scale-105" />
           {comic.badge ? <span className="absolute left-2 top-2 rounded bg-black/65 px-2 py-1 text-xs font-semibold text-primary backdrop-blur">{comic.badge}</span> : null}
       </Link>
-      <div className="absolute right-2 top-[calc(100%-4.8rem)] opacity-0 transition group-hover:opacity-100">
-        {comic.kind === 'series' ? null : <BookmarkButton comic={comic} />}
+      <div className="absolute right-2 top-2 z-10 opacity-100 md:opacity-0 md:transition md:group-hover:opacity-100">
+        <BookmarkButton comic={comic} deferSessionCheck />
       </div>
       <Link href={href} className="block truncate text-lg font-semibold text-on-surface transition group-hover:text-primary">{comic.title}</Link>
       <p className="text-sm text-on-surface-variant">{comic.meta || detailLabel(comic)}</p>
@@ -114,7 +114,7 @@ export const UpdatesGrid = memo(function UpdatesGrid({ title = 'Update Terbaru',
     <section data-scroll-reveal className="scroll-reveal content-visibility-auto mt-20 px-container-mobile pb-16 md:px-container-desktop">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <h2 className="min-w-0 font-display text-2xl font-semibold text-on-background">{title}</h2>
-        <Link href="/komik" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10" aria-label="Buka indeks komik dan anime">
+        <Link href="/indeks" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10" aria-label="Buka indeks komik dan anime">
           <Filter size={18} />
           Indeks
         </Link>
@@ -122,7 +122,7 @@ export const UpdatesGrid = memo(function UpdatesGrid({ title = 'Update Terbaru',
       <div className="grid grid-cols-2 gap-x-5 gap-y-7 md:grid-cols-4 md:gap-x-6 lg:grid-cols-6">
         {lead ? <Link href={latestHref(lead)} className="interactive-lift group col-span-2 row-span-2 min-h-[360px] cursor-pointer overflow-hidden rounded-2xl border border-white/5">
           <div className="relative h-full">
-            <img src={lead.image} alt={lead.title} width={520} height={780} loading="lazy" decoding="async" sizes="(max-width: 768px) 92vw, 520px" className="image-render-safe h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+            <img src={lead.image} alt={lead.title} width={520} height={780} loading="lazy" decoding="async" sizes="(max-width: 768px) 92vw, 520px" className="card-scroll-media image-render-safe h-full w-full object-cover transition duration-700 group-hover:scale-105" />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
             <div className="absolute bottom-6 left-6 right-6">
               <span className="rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-on-primary">{lead.kind === 'series' ? 'Episode Baru' : 'Chapter Baru'}</span>
@@ -134,7 +134,7 @@ export const UpdatesGrid = memo(function UpdatesGrid({ title = 'Update Terbaru',
         {secondaryUpdates.map((comic) => (
           <Link key={`${comic.kind || 'comic'}-${comic.slug || comic.title}`} href={latestHref(comic)} className="interactive-lift group cursor-pointer">
             <div className="mb-3 aspect-[2/3] overflow-hidden rounded-xl border border-white/5">
-              <img src={comic.image} alt={comic.title} width={180} height={270} loading="lazy" decoding="async" sizes="(max-width: 768px) 44vw, 180px" className="image-render-safe h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+              <img src={comic.image} alt={comic.title} width={180} height={270} loading="lazy" decoding="async" sizes="(max-width: 768px) 44vw, 180px" className="card-scroll-media image-render-safe h-full w-full object-cover transition duration-500 group-hover:scale-105" />
             </div>
             <h4 className="truncate font-semibold text-on-surface">{comic.title}</h4>
             <p className="text-xs text-on-surface-variant">{comic.episode || detailLabel(comic)}</p>

@@ -193,16 +193,40 @@ CREATE TABLE public.naraya_library_items (
     last_chapter_title text DEFAULT ''::text NOT NULL,
     status text DEFAULT 'reading'::text NOT NULL,
     progress_percent integer DEFAULT 0 NOT NULL,
+    progress_completed integer DEFAULT 0 NOT NULL,
+    progress_total integer DEFAULT 0 NOT NULL,
     is_bookmarked boolean DEFAULT false NOT NULL,
     added_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     last_read_at timestamp with time zone,
     content_kind text DEFAULT 'comic'::text NOT NULL,
+    content_status text DEFAULT ''::text NOT NULL,
     CONSTRAINT naraya_library_content_kind_allowed CHECK ((content_kind = ANY (ARRAY['comic'::text, 'series'::text]))),
+    CONSTRAINT naraya_library_progress_completed_range CHECK ((progress_completed >= 0)),
     CONSTRAINT naraya_library_progress_range CHECK (((progress_percent >= 0) AND (progress_percent <= 100))),
+    CONSTRAINT naraya_library_progress_total_range CHECK ((progress_total >= 0)),
     CONSTRAINT naraya_library_status_allowed CHECK ((status = ANY (ARRAY['reading'::text, 'planned'::text, 'completed'::text, 'paused'::text, 'dropped'::text])))
 )
 WITH (autovacuum_vacuum_scale_factor='0.05', autovacuum_analyze_scale_factor='0.02');
+
+
+--
+-- Name: naraya_library_progress_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.naraya_library_progress_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    comic_slug text NOT NULL,
+    content_kind text DEFAULT 'comic'::text NOT NULL,
+    chapter_slug text NOT NULL,
+    chapter_title text DEFAULT ''::text NOT NULL,
+    read_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT naraya_library_progress_kind_allowed CHECK ((content_kind = ANY (ARRAY['comic'::text, 'series'::text]))),
+    CONSTRAINT naraya_library_progress_target_required CHECK (((comic_slug <> ''::text) AND (chapter_slug <> ''::text)))
+);
 
 
 --
@@ -329,6 +353,22 @@ ALTER TABLE ONLY public.naraya_library_items
 
 ALTER TABLE ONLY public.naraya_library_items
     ADD CONSTRAINT naraya_library_unique_user_comic UNIQUE (user_id, comic_slug);
+
+
+--
+-- Name: naraya_library_progress_items naraya_library_progress_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_library_progress_items
+    ADD CONSTRAINT naraya_library_progress_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: naraya_library_progress_items naraya_library_progress_unique; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_library_progress_items
+    ADD CONSTRAINT naraya_library_progress_unique UNIQUE (user_id, comic_slug, chapter_slug);
 
 
 --
@@ -479,6 +519,12 @@ CREATE INDEX naraya_library_bookmark_idx ON public.naraya_library_items USING bt
 
 CREATE INDEX naraya_library_favorite_kind_cursor_idx ON public.naraya_library_items USING btree (user_id, content_kind, updated_at DESC, id DESC) WHERE (is_bookmarked = true);
 
+--
+-- Name: naraya_library_favorite_content_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_favorite_content_status_idx ON public.naraya_library_items USING btree (user_id, content_kind, content_status, updated_at DESC, id DESC) WHERE (is_bookmarked = true);
+
 
 --
 -- Name: naraya_library_favorite_target_user_idx; Type: INDEX; Schema: public; Owner: -
@@ -499,6 +545,20 @@ CREATE INDEX naraya_library_history_idx ON public.naraya_library_items USING btr
 --
 
 CREATE INDEX naraya_library_history_kind_status_cursor_idx ON public.naraya_library_items USING btree (user_id, content_kind, status, updated_at DESC, id DESC) WHERE ((status <> 'planned'::text) OR (progress_percent > 0));
+
+
+--
+-- Name: naraya_library_progress_user_comic_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_progress_user_comic_idx ON public.naraya_library_progress_items USING btree (user_id, comic_slug, read_at DESC);
+
+
+--
+-- Name: naraya_library_progress_user_updated_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX naraya_library_progress_user_updated_idx ON public.naraya_library_progress_items USING btree (user_id, updated_at DESC, id DESC);
 
 
 --
@@ -645,6 +705,14 @@ ALTER TABLE ONLY public.naraya_library_items
 
 
 --
+-- Name: naraya_library_progress_items naraya_library_progress_items_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.naraya_library_progress_items
+    ADD CONSTRAINT naraya_library_progress_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.naraya_users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: naraya_love_items naraya_love_items_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -673,4 +741,3 @@ ALTER TABLE ONLY public.naraya_user_settings
 --
 
 \unrestrict qtobQfrpylfpVTkV94zFzkNcCJmAuJMd3oI3sGkDrUK0YJNqpGbHJcdttYZAZqv
-

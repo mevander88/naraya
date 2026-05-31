@@ -61,6 +61,7 @@ type LibraryItem struct {
 	ComicSlug         string     `json:"comicSlug"`
 	ComicTitle        string     `json:"comicTitle"`
 	ContentKind       string     `json:"contentKind"`
+	ContentStatus     string     `json:"contentStatus"`
 	CoverURL          string     `json:"coverUrl"`
 	SourceURL         string     `json:"-"`
 	LatestChapterSlug string     `json:"latestChapterSlug"`
@@ -68,6 +69,8 @@ type LibraryItem struct {
 	LastChapterTitle  string     `json:"lastChapterTitle"`
 	Status            string     `json:"status"`
 	ProgressPercent   int        `json:"progressPercent"`
+	ProgressCompleted int        `json:"progressCompleted"`
+	ProgressTotal     int        `json:"progressTotal"`
 	IsBookmarked      bool       `json:"isBookmarked"`
 	AddedAt           time.Time  `json:"addedAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
@@ -123,6 +126,7 @@ type UpsertLibraryRequest struct {
 	ComicSlug         string `json:"comicSlug"`
 	ComicTitle        string `json:"comicTitle"`
 	ContentKind       string `json:"contentKind"`
+	ContentStatus     string `json:"contentStatus"`
 	CoverURL          string `json:"coverUrl"`
 	SourceURL         string `json:"-"`
 	LatestChapterSlug string `json:"latestChapterSlug"`
@@ -130,6 +134,8 @@ type UpsertLibraryRequest struct {
 	LastChapterTitle  string `json:"lastChapterTitle"`
 	Status            string `json:"status"`
 	ProgressPercent   int    `json:"progressPercent"`
+	ProgressCompleted int    `json:"progressCompleted"`
+	ProgressTotal     int    `json:"progressTotal"`
 	IsBookmarked      bool   `json:"isBookmarked"`
 }
 

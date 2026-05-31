@@ -14,7 +14,7 @@ export function HomeHeroSlider({ comics = [], activeIndex = 0 }: { comics?: Comi
   const slides = comics.slice(0, 8);
   const hero = slides[activeIndex] ?? comics[0];
   const heroKey = hero ? `${hero.kind || 'item'}-${hero.slug}-${activeIndex}` : 'empty';
-  const heroChapterHref = hero?.latestChapterSlug ? (hero.kind === 'series' ? `/nonton/${hero.latestChapterSlug}` : `/baca/${hero.latestChapterSlug}`) : hero ? (hero.kind === 'series' ? `/series/${hero.slug}` : `/komik/${hero.slug}`) : '/komik';
+  const heroChapterHref = hero?.latestChapterSlug ? (hero.kind === 'series' ? `/nonton/${hero.latestChapterSlug}` : `/baca/${hero.latestChapterSlug}`) : hero ? (hero.kind === 'series' ? `/series/${hero.slug}` : `/komik/${hero.slug}`) : '/indeks';
   const priorityImage = activeIndex === 0;
 
   useEffect(() => {
@@ -72,7 +72,7 @@ export function HomeHeroSlider({ comics = [], activeIndex = 0 }: { comics?: Comi
             <Play size={20} fill="currentColor" />
             {hero?.latestChapterSlug ? (hero.kind === 'series' ? 'Nonton Episode Baru' : 'Baca Chapter Baru') : 'Buka Indeks'}
           </Link>
-          <Link href={hero ? (hero.kind === 'series' ? `/series/${hero.slug}` : `/komik/${hero.slug}`) : '/komik'} className="interactive-lift inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-variant/45 px-7 py-3 font-semibold text-on-surface transition hover:bg-surface-variant active:scale-95">
+          <Link href={hero ? (hero.kind === 'series' ? `/series/${hero.slug}` : `/komik/${hero.slug}`) : '/indeks'} className="interactive-lift inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-variant/45 px-7 py-3 font-semibold text-on-surface transition hover:bg-surface-variant active:scale-95">
             <Info size={20} />
             {detailLabel(hero)}
           </Link>

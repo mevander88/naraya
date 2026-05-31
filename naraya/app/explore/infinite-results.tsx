@@ -18,6 +18,22 @@ type InfiniteExploreResultsProps = {
   };
 };
 
+function sanitizeCatalogItem(item: CatalogItem): CatalogItem {
+  return {
+    slug: item.slug,
+    title: item.title,
+    cover: mediaURL(item.cover),
+    type: item.type,
+    status: item.status,
+    genres: item.genres,
+    description: '',
+    lastMod: item.lastMod,
+    kind: item.kind,
+    count: item.count,
+    latestChapterSlug: item.latestChapterSlug,
+  };
+}
+
 export function InfiniteExploreResults({ initialItems, initialPage, totalPages, filters }: InfiniteExploreResultsProps) {
   const [items, setItems] = useState(initialItems);
   const [page, setPage] = useState(initialPage);
@@ -65,7 +81,7 @@ export function InfiniteExploreResults({ initialItems, initialPage, totalPages, 
         const response = await fetch(apiURL(`/comics/catalog?${query.toString()}`));
         if (response.ok) {
           const payload = (await response.json()) as { items?: CatalogItem[] };
-          setItems((current) => [...current, ...(payload.items ?? []).map((item) => ({ ...item, cover: mediaURL(item.cover), description: '' }))]);
+          setItems((current) => [...current, ...(payload.items ?? []).map(sanitizeCatalogItem)]);
           setPage(nextPage);
         }
       } finally {

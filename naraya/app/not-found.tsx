@@ -3,7 +3,7 @@ import { BookOpen, Compass, Home, Search } from 'lucide-react';
 
 const quickLinks = [
   { href: '/', label: 'Home', icon: Home },
-  { href: '/komik', label: 'Indeks', icon: BookOpen },
+  { href: '/indeks', label: 'Indeks', icon: BookOpen },
   { href: '/explore', label: 'Explore', icon: Compass },
 ];
 
@@ -31,7 +31,7 @@ export default function NotFound() {
               <Search size={18} />
               Cari judul
             </Link>
-            <Link href="/komik" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
+            <Link href="/indeks" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
               <BookOpen size={18} />
               Buka indeks
             </Link>

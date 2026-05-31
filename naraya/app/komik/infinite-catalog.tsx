@@ -19,6 +19,22 @@ function titleFromSlug(slug: string) {
   return slug.split('-').filter(Boolean).map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 }
 
+function sanitizeCatalogItem(item: CatalogItem): CatalogItem {
+  return {
+    slug: item.slug,
+    title: item.title,
+    cover: mediaURL(item.cover),
+    type: item.type,
+    status: item.status,
+    genres: item.genres,
+    description: item.description,
+    lastMod: item.lastMod,
+    kind: item.kind,
+    count: item.count,
+    latestChapterSlug: item.latestChapterSlug,
+  };
+}
+
 export function KomikIndexClient({ initialItems, initialPage, totalPages, totalItems }: InfiniteCatalogProps) {
   const [activeLetter, setActiveLetter] = useState('All');
   const [overallTotalItems] = useState(totalItems);
@@ -31,7 +47,7 @@ export function KomikIndexClient({ initialItems, initialPage, totalPages, totalI
     if (letter === activeLetter || loadingLetter) return;
     setActiveLetter(letter);
     setLoadingLetter(true);
-    window.history.pushState(null, '', letter === 'All' ? '/komik' : `/komik?letter=${encodeURIComponent(letter)}`);
+    window.history.pushState(null, '', letter === 'All' ? '/indeks' : `/indeks?letter=${encodeURIComponent(letter)}`);
     try {
       const query = new URLSearchParams({ page: '1' });
       if (letter !== 'All') query.set('letter', letter);
@@ -39,12 +55,12 @@ export function KomikIndexClient({ initialItems, initialPage, totalPages, totalI
       if (response.ok) {
         const payload = (await response.json()) as { page: number; totalPages: number; totalItems?: string; items?: CatalogItem[] };
         setInitialState({
-          items: (payload.items ?? []).map((item) => ({ ...item, cover: mediaURL(item.cover) })),
+          items: (payload.items ?? []).map(sanitizeCatalogItem),
           page: payload.page,
           totalPages: payload.totalPages,
           totalItems: overallTotalItems,
         });
-        setLoadedItems((payload.items ?? []).map((item) => ({ ...item, cover: mediaURL(item.cover) })));
+        setLoadedItems((payload.items ?? []).map(sanitizeCatalogItem));
       } else {
         setInitialState({ items: [], page: 1, totalPages: 1, totalItems: overallTotalItems });
         setLoadedItems([]);
@@ -146,7 +162,7 @@ function InfiniteCatalog({ initialItems, initialPage, totalPages, letter, loadin
         const response = await fetch(apiURL(`/comics/az?${query.toString()}`));
         if (response.ok) {
           const payload = (await response.json()) as { page?: number; totalPages?: number; items?: CatalogItem[] };
-          const nextItems = (payload.items ?? []).map((item) => ({ ...item, cover: mediaURL(item.cover) }));
+          const nextItems = (payload.items ?? []).map(sanitizeCatalogItem);
           if (nextItems.length) {
             setItems((current) => {
               const merged = [...current, ...nextItems];
@@ -180,10 +196,10 @@ function InfiniteCatalog({ initialItems, initialPage, totalPages, letter, loadin
       {!loadingFirstPage ? (
       <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-7 md:grid-cols-4 md:gap-x-6 lg:grid-cols-5 xl:grid-cols-6">
         {uniqueItems.map((item) => (
-          <Link key={`${item.kind}-${item.slug}`} href={item.kind === 'series' ? `/series/${item.slug}` : `/komik/${item.slug}`} className="group block min-w-0">
+          <Link key={`${item.kind}-${item.slug}`} href={item.kind === 'series' ? `/series/${item.slug}` : `/komik/${item.slug}`} className="card-content-visibility group block min-w-0">
             <div className="relative aspect-[2/3] overflow-hidden rounded-2xl bg-surface-container-high shadow-xl shadow-black/20 ring-1 ring-white/5">
               {item.cover ? (
-                <img src={item.cover} alt={item.title || titleFromSlug(item.slug)} width={220} height={330} loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                <img src={item.cover} alt={item.title || titleFromSlug(item.slug)} width={220} height={330} loading="lazy" decoding="async" sizes="(max-width: 768px) 46vw, (max-width: 1280px) 20vw, 220px" className="card-scroll-media h-full w-full object-cover transition duration-500 group-hover:scale-105" />
               ) : (
                 <div className="grid h-full place-items-center bg-primary/10 px-4 text-center font-display text-3xl font-bold text-primary">
                   {(item.title || titleFromSlug(item.slug)).slice(0, 1)}

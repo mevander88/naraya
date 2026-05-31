@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
 
 export default function BacaIndexPage() {
-  redirect('/komik');
+  redirect('/indeks');
 }

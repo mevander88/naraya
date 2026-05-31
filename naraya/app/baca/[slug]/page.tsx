@@ -7,39 +7,29 @@ import { ReaderBack } from '../reader-back';
 import { CommentThread } from '../../comment-thread';
 import { AutoBookmarkVisit } from '../../internal-actions';
 import { ShareButton } from '../../share-button';
+import { JsonLd } from '../../../seo/json-ld';
+import { buildBreadcrumbSchema } from '../../../seo/schema/breadcrumb';
+import { buildChapterSchema } from '../../../seo/schema/chapter';
+import { buildOpenGraphMetadata, buildTwitterMetadata } from '../../../seo/social';
 
 type PageProps = {
   params: Promise<{ slug: string }>;
 };
-
-function progressFromNewestFirst(index: number, total: number) {
-  if (index < 0 || total <= 0) return 0;
-  return Math.max(1, Math.min(100, Math.round(((total - index) / total) * 100)));
-}
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const reader = await getReader(slug);
   const detail = reader?.comicSlug ? await getComicDetail(reader.comicSlug) : null;
   const title = reader?.title || titleFromSlug(slug);
-  const description = `Baca ${title} di Naraya dengan reader gambar yang fokus dan nyaman.`;
-  const image = detail?.cover || '/opengraph-image';
+  const description = `Baca komik ${title} bahasa Indonesia di Naraya, komik online dengan reader gambar yang fokus dan nyaman.`;
+  const socialTitle = `${title} | Naraya`;
   return {
     title,
     description,
+    keywords: [title, `baca ${title}`, `baca komik ${title}`, `komik ${title} bahasa indonesia`, 'komik online', 'baca komik', 'baca komik bahasa indonesia', 'manga bahasa indonesia'],
     alternates: { canonical: `/baca/${slug}` },
-    openGraph: {
-      title: `${title} | Naraya`,
-      description,
-      url: `/baca/${slug}`,
-      images: [{ url: image, alt: title }],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: `${title} | Naraya`,
-      description,
-      images: [image],
-    },
+    openGraph: buildOpenGraphMetadata({ title: socialTitle, description, path: `/baca/${slug}`, type: 'article', imageAlt: title }),
+    twitter: buildTwitterMetadata({ title: socialTitle, description, path: `/baca/${slug}`, imageAlt: title }),
   };
 }
 
@@ -55,15 +45,32 @@ export default async function ReaderPage({ params }: PageProps) {
     getSettings(),
   ]);
   const chapterIndex = detail?.chapters.findIndex((chapter) => chapter.slug === reader.slug) ?? -1;
+  const currentChapter = detail && chapterIndex >= 0 ? detail.chapters[chapterIndex] : null;
   const continuousChapters = chapterIndex >= 0 ? detail?.chapters.slice(0, chapterIndex + 1).reverse() : detail?.chapters;
-  const progressPercent = progressFromNewestFirst(chapterIndex, detail?.chapters.length ?? 0);
+  const description = `Baca komik ${reader.title} bahasa Indonesia di Naraya, komik online dengan reader gambar yang fokus dan nyaman.`;
+  const chapterSchema = buildChapterSchema({
+    slug: reader.slug,
+    title: reader.title,
+    description,
+    image: detail?.cover || reader.images[0],
+    chapterNumber: currentChapter?.number,
+    publishedDate: currentChapter?.date,
+    comic: detail ? { slug: detail.slug, title: detail.title } : null,
+  });
+  const breadcrumbSchema = buildBreadcrumbSchema([
+    { name: 'Naraya', path: '/' },
+    { name: 'Komik', path: '/indeks' },
+    ...(detail ? [{ name: detail.title, path: `/komik/${detail.slug}` }] : []),
+    { name: reader.title, path: `/baca/${reader.slug}` },
+  ]);
 
   return (
     <section className="pb-20 pt-24">
-      <ReaderBack href={comicSlug ? `/komik/${comicSlug}` : '/komik'} label={comicSlug ? 'Detail Komik' : 'Indeks'} />
+      <JsonLd data={[chapterSchema, breadcrumbSchema]} />
+      <ReaderBack href={comicSlug ? `/komik/${comicSlug}` : '/indeks'} label={comicSlug ? 'Detail Komik' : 'Indeks'} />
       <div className="px-container-mobile md:px-container-desktop">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Link href={comicSlug ? `/komik/${comicSlug}` : '/komik'} className="text-sm font-semibold text-primary hover:underline">
+          <Link href={comicSlug ? `/komik/${comicSlug}` : '/indeks'} className="text-sm font-semibold text-primary hover:underline">
             {comicSlug ? 'Kembali ke Detail Komik' : 'Kembali ke Indeks Komik'}
           </Link>
           <ShareButton title={reader.title} path={`/baca/${reader.slug}`} variant="icon" />
@@ -79,11 +86,13 @@ export default async function ReaderPage({ params }: PageProps) {
             title: detail.title,
             kind: 'comic',
             coverUrl: detail.cover,
+            contentStatus: detail.status,
             latestChapterSlug: detail.chapters[0]?.slug,
             lastChapterSlug: reader.slug,
             lastChapterTitle: reader.title,
-            status: progressPercent >= 100 ? 'completed' : 'reading',
-            progressPercent,
+            status: 'reading',
+            progressPercent: 0,
+            progressTotal: detail.chapters.length,
           }}
         />
       ) : null}
