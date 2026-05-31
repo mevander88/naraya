@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Bell, BookOpen, Compass, Home, Library, Maximize2, Minimize2, Search, Settings, User } from 'lucide-react';
+import { ArrowLeft, Bell, BookOpen, Compass, Download, Home, Library, Maximize2, Minimize2, Search, Settings, User } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { FormEvent, useEffect, useRef, useState } from 'react';
@@ -30,6 +30,7 @@ const desktopItems = [
   { href: '/explore', icon: Compass, label: 'Explore' },
   { href: '/library', icon: Library, label: 'Rak' },
   { href: '/profile', icon: User, label: 'Profile' },
+  { href: '/download', icon: Download, label: 'Install' },
   { href: '/notifications', icon: Bell, label: 'Alerts' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
@@ -339,6 +340,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
                   <Link href="/indeks" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Indeks</Link>
                   <Link href="/explore" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Explore</Link>
                   <Link href="/library" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Rak</Link>
+                  <Link href="/download" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Download</Link>
                   <Link href="/login" className="text-sm font-semibold text-on-surface-variant transition hover:text-primary">Login</Link>
                 </div>
                 <div className="flex flex-wrap gap-3">
@@ -369,7 +371,7 @@ export function NavShell({ children }: { children: React.ReactNode }) {
         {bottomItems.map(({ href, icon: Icon, label }) => {
           const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
           return (
-            <Link key={href} href={href} className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-xs font-semibold transition ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
+            <Link key={href} href={href} prefetch={false} className={`flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 text-xs font-semibold transition ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
               <Icon size={22} />
               <span className="max-w-full truncate">{label}</span>
             </Link>

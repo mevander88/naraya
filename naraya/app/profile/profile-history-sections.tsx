@@ -144,7 +144,7 @@ export function CommentHistorySection({ initialPage, library }: { initialPage: C
               {detail.parentBody ? (
                 <div className="mt-3 max-w-full rounded-xl bg-surface-container/70 p-3">
                   <p className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-sky-200">{detail.parentLabel}</p>
-                  <p className="mt-1 line-clamp-2 max-w-full break-words text-xs leading-5 text-on-surface-variant [overflow-wrap:anywhere]">{detail.parentBody}</p>
+                  <p className="mt-1 max-w-full break-words text-xs leading-5 text-on-surface-variant [overflow-wrap:anywhere]">{detail.parentBody}</p>
                 </div>
               ) : null}
               {detail.isReply ? (

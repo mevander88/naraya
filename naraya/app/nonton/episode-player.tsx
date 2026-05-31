@@ -172,6 +172,7 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
   const tapTimerRef = useRef<number | null>(null);
   const tapCountRef = useRef(0);
   const lastTimeUpdateRef = useRef(0);
+  const autoplayAttemptedRef = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -218,6 +219,25 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
     const timer = window.setTimeout(() => setSlowLoading(true), 8000);
     return () => window.clearTimeout(timer);
   }, [error, resolving, src, waiting]);
+
+  useEffect(() => {
+    autoplayAttemptedRef.current = false;
+    setError(false);
+    setWaiting(true);
+    setPlaying(false);
+    setCurrent(0);
+    setDuration(0);
+  }, [src]);
+
+  function attemptAutoplay(video: HTMLVideoElement) {
+    if (autoplayAttemptedRef.current || error) return;
+    autoplayAttemptedRef.current = true;
+    void video.play().catch(() => {
+      video.muted = true;
+      setMuted(true);
+      void video.play().catch(() => undefined);
+    });
+  }
 
   function handleSurfaceClick() {
     tapCountRef.current += 1;
@@ -317,8 +337,10 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
       <video
         ref={videoRef}
         src={src}
+        autoPlay
+        muted={muted}
         playsInline
-        preload="metadata"
+        preload="auto"
         controlsList="nodownload noremoteplayback"
         disablePictureInPicture
         draggable={false}
@@ -330,7 +352,10 @@ function NarayaVideoPlayer({ src, title, resolving }: { src: string; title: stri
           setDuration(event.currentTarget.duration || 0);
           setWaiting(false);
         }}
-        onCanPlay={() => setWaiting(false)}
+        onCanPlay={(event) => {
+          setWaiting(false);
+          attemptAutoplay(event.currentTarget);
+        }}
         onWaiting={() => setWaiting(true)}
         onLoadStart={() => setWaiting(true)}
         onTimeUpdate={handleTimeUpdate}

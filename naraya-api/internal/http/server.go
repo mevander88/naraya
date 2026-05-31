@@ -30,7 +30,7 @@ func NewServer(cfg config.Config) *fiber.App {
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     cfg.CORSOrigins,
 		AllowMethods:     "GET,POST,PATCH,DELETE,OPTIONS",
-		AllowHeaders:     "Origin,Content-Type,Accept,X-Naraya-Session,Authorization",
+		AllowHeaders:     "Origin,Content-Type,Accept,X-Naraya-Session,Authorization,X-Naraya-App,X-Naraya-App-Version,X-Naraya-App-Timestamp,X-Naraya-App-Signature",
 		AllowCredentials: true,
 	}))
 
@@ -47,7 +47,7 @@ func NewServer(cfg config.Config) *fiber.App {
 		scraper.NewCache[[]model.CatalogItem](cfg.CacheTTL),
 		scraper.NewCache[[]model.MenuItem](cfg.CacheTTL),
 	)
-	handler := NewComicHandler(service)
+	handler := NewComicHandler(service, cfg.AppAccessSecret)
 	var internalHandler *InternalHandler
 	db, err := database.Connect(context.Background(), cfg.DatabaseURL, cfg.DBMaxConns, cfg.DBMinConns)
 	if err != nil {

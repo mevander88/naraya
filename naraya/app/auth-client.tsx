@@ -2,7 +2,7 @@
 
 import { ArrowRight, LogIn, LogOut, Sparkles, UserPlus } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { apiCredentials, apiURL } from './lib/client-api';
 
@@ -102,8 +102,10 @@ export function LogoutButton({ className = '', label = 'Logout' }: { className?:
 
 export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
   const [message, setMessage] = useState('');
+  const next = safeNextPath(searchParams.get('next'));
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,7 +134,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       if (!response.ok) throw new Error('Request gagal');
       const auth = await response.json() as { user: AuthUser };
       writeSession(auth.user);
-      router.push('/profile');
+      router.push(next);
       router.refresh();
     } catch {
       setStatus('error');
@@ -194,6 +196,12 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
       </p>
     </form>
   );
+}
+
+function safeNextPath(value: string | null) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/profile';
+  if (value.startsWith('/api/') || value.startsWith('/download/android')) return '/profile';
+  return value;
 }
 
 const inputClassName = 'h-[3.25rem] rounded-[1.35rem] bg-[#17131f]/82 px-4 text-sm font-medium text-on-surface outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.045),0_10px_24px_rgba(0,0,0,0.16)] ring-1 ring-primary/10 transition placeholder:text-on-surface-variant/45 hover:bg-[#1b1724]/88 focus:bg-[#1d1827] focus:ring-2 focus:ring-primary/35';

@@ -7,7 +7,9 @@
 Naraya adalah aplikasi web untuk membaca komik dan menonton anime. Project ini
 terdiri dari frontend Next.js dan backend Go yang mengambil data katalog dari
 source upstream, menyajikan halaman publik untuk SEO, serta menyediakan fitur
-akun seperti rak, progress, komentar, reply, love, dan settings.
+akun seperti rak, progress, komentar, reply, love, dan settings. Repository ini
+juga memuat aplikasi native Android Naraya Beta, bukan WebView, yang memakai API
+dan flow yang sama dengan web.
 
 Domain produksi:
 
@@ -28,6 +30,7 @@ Fitur publik:
 - Reader komik di `/baca/[slug]` dengan infinite chapter rendering dan komentar chapter.
 - Player anime di `/nonton/[slug]` dengan custom controls, fullscreen, seek 10 detik, indikator waktu, komentar episode, dan navigasi episode.
 - Halaman AMP untuk home, detail komik, dan detail anime.
+- Halaman install Android Beta di `/download` dengan download APK publik dan update langsung dari aplikasi.
 - Halaman 404, robots.txt, sitemap.xml, Open Graph image, Twitter card, JSON-LD, dan metadata SEO.
 
 Fitur akun:
@@ -42,6 +45,17 @@ Fitur akun:
 - Love komik/anime dengan proteksi agar satu user tidak bisa love target yang sama dua kali.
 - Favorite komik/anime dengan total favorite dan proteksi satu item per user.
 - Progress baca/nonton dihitung dari chapter/episode unik yang sudah dibuka user.
+
+Fitur Android Beta:
+
+- Aplikasi Kotlin native dengan Jetpack Compose, bukan WebView.
+- Menu Home, Explore, Indeks, Rak, Profile, Settings, Login, dan Register mengikuti flow web Naraya.
+- Detail komik/anime, reader chapter, player episode, komentar, reply, love, favorite, share, dan progress tersinkron ke backend.
+- Reader komik fullscreen dengan tombol chapter sebelumnya/berikutnya.
+- Player anime native Media3 ExoPlayer dengan pilihan server, fullscreen, loading state, retry, dan Picture-in-Picture.
+- MediaSession foreground service untuk playback video saat aplikasi masuk latar belakang sesuai dukungan Android.
+- In-app updater untuk build distribusi web, termasuk cek versi terbaru, download streaming, install prompt, dan notifikasi update.
+- Variant `play` mematikan in-app updater agar permission install APK tidak ikut ke build Google Play.
 
 Fitur backend:
 
@@ -65,6 +79,7 @@ Proteksi API:
 - Browser Naraya mendapat cookie `naraya_web` dari frontend.
 - Request API browser harus membawa konteks web yang valid.
 - Request internal server-side frontend memakai `NARAYA_INTERNAL_TOKEN`.
+- Request aplikasi Android native memakai header `X-Naraya-App`, versi, timestamp, dan HMAC signature dari `NARAYA_APP_ACCESS_SECRET`.
 - User-agent scraping umum seperti curl, wget, python-requests, httpx, scrapy,
   axios, headlesschrome, selenium, playwright, dan sejenisnya ditolak oleh web guard.
 
@@ -146,11 +161,21 @@ Catatan produksi:
       store/
     migrations/
     go.mod
+  naraya-android/
+    app/
+      src/main/java/id/naraya/app/
+        data/
+        ui/
+    README.md
+    build.gradle.kts
+    settings.gradle.kts
 ```
 
 Frontend utama berada di `naraya/app`. Backend utama berada di `naraya-api`.
-Folder `deploy` berisi contoh environment, systemd unit, dan nginx reverse proxy
-untuk production.
+Project Android native berada di `naraya-android`. Folder `deploy` berisi
+contoh environment, systemd unit, dan nginx reverse proxy untuk production.
+Build Android saat ini ditandai sebagai beta melalui label aplikasi
+`Naraya Beta` dan version name `1.0.36-beta`.
 
 ## Stack
 
@@ -179,6 +204,19 @@ Database:
 - Extension `pgcrypto`
 - SQL migrations di `naraya-api/migrations`
 
+Android:
+
+- Kotlin
+- Jetpack Compose
+- Material 3
+- Navigation Compose
+- OkHttp
+- Kotlinx Serialization
+- Coil Compose
+- Media3 ExoPlayer
+- Media3 Session
+- WorkManager
+
 ## Route Frontend
 
 Route publik:
@@ -194,6 +232,7 @@ Route publik:
 - `/amp`
 - `/amp/komik/[slug]`
 - `/amp/series/[slug]`
+- `/download`
 - `/robots.txt`
 - `/sitemap.xml`
 - `/opengraph-image`
@@ -207,6 +246,12 @@ Route akun:
 - `/library`
 - `/settings`
 - `/notifications`
+
+Route download Android:
+
+- `/download` menampilkan halaman install Naraya Android Beta.
+- `/download/android/version` mengirim metadata versi APK, release notes, dan URL download.
+- `/download/android` mengirim APK publik tanpa login dengan header noindex, noarchive, no-store, range request, dan filename versi.
 
 Route redirect:
 
@@ -548,6 +593,11 @@ HOSTNAME=127.0.0.1
 NARAYA_API_URL=https://naraya.biz.id/api
 NEXT_PUBLIC_NARAYA_API_URL=https://naraya.biz.id/api
 NARAYA_INTERNAL_TOKEN=change-this-internal-token
+NARAYA_ANDROID_APK_PATH=/var/www/naraya/naraya-android/app/build/outputs/apk/web/debug/app-web-debug.apk
+NARAYA_ANDROID_VERSION_CODE=37
+NARAYA_ANDROID_VERSION_NAME=1.0.36-beta
+NARAYA_ANDROID_MIN_SUPPORTED_VERSION_CODE=1
+NARAYA_ANDROID_UPDATE_REQUIRED=false
 ```
 
 Catatan:
@@ -555,6 +605,9 @@ Catatan:
 - `NARAYA_API_URL` dipakai server-side frontend.
 - `NEXT_PUBLIC_NARAYA_API_URL` dipakai client-side jika perlu.
 - `NARAYA_INTERNAL_TOKEN` harus sama dengan backend agar sitemap dan server-rendered data bisa mengambil API protected.
+- `NARAYA_ANDROID_APK_PATH` opsional untuk menentukan lokasi APK yang dilayani halaman `/download`.
+- `NARAYA_ANDROID_VERSION_CODE` dan `NARAYA_ANDROID_VERSION_NAME` dipakai endpoint update Android.
+- `NARAYA_ANDROID_UPDATE_REQUIRED=true` membuat update dianggap wajib oleh aplikasi.
 
 ## Install Lokal
 
@@ -648,6 +701,26 @@ npm ci
 npm run build
 ```
 
+Android Beta:
+
+```bash
+cd naraya-android
+NARAYA_APP_ACCESS_SECRET=change-this-long-random-secret ./gradlew assembleWebDebug
+```
+
+Output APK distribusi web:
+
+```text
+naraya-android/app/build/outputs/apk/web/debug/app-web-debug.apk
+```
+
+Build Google Play tanpa in-app updater:
+
+```bash
+cd naraya-android
+NARAYA_APP_ACCESS_SECRET=change-this-long-random-secret ./gradlew assemblePlayRelease
+```
+
 Project memakai `output: 'standalone'`. Pada production systemd, folder
 `.next/static` dan `public` disalin ke `.next/standalone` sebelum server Next
 dijalankan, karena standalone output tidak selalu membawa asset statis tersebut.
@@ -683,10 +756,11 @@ Urutan deploy:
 4. Build binary API dan migrator.
 5. Jalankan migrasi database.
 6. Build frontend Next.js.
-7. Install/update systemd unit.
-8. Restart API dan frontend.
-9. Pastikan nginx proxy mengarah ke port yang benar.
-10. Audit health, HTML, static asset, robots, dan sitemap.
+7. Build APK Android Beta jika ingin memperbarui `/download`.
+8. Install/update systemd unit.
+9. Restart API dan frontend.
+10. Pastikan nginx proxy mengarah ke port yang benar.
+11. Audit health, HTML, static asset, robots, sitemap, dan endpoint update Android.
 
 Contoh command:
 
@@ -706,6 +780,9 @@ set +a
 cd ../naraya
 npm ci
 npm run build
+
+cd ../naraya-android
+NARAYA_APP_ACCESS_SECRET="$(awk -F= '/^WEB_ACCESS_SECRET=/{print $2}' /etc/naraya/naraya-api.env)" ./gradlew assembleWebDebug
 
 sudo cp /var/www/naraya/deploy/systemd/naraya-api.service /etc/systemd/system/naraya-api.service
 sudo cp /var/www/naraya/deploy/systemd/naraya-frontend.service /etc/systemd/system/naraya-frontend.service
@@ -755,6 +832,13 @@ SEO:
 ```bash
 curl https://naraya.biz.id/robots.txt
 curl https://naraya.biz.id/sitemap.xml
+```
+
+Android update:
+
+```bash
+curl https://naraya.biz.id/download/android/version
+curl -I https://naraya.biz.id/download/android
 ```
 
 Service:

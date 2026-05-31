@@ -14,6 +14,7 @@ type Config struct {
 	DBMinConns      int
 	CORSOrigins     string
 	WebAccessSecret string
+	AppAccessSecret string
 	InternalToken   string
 	HTTPTimeout     time.Duration
 	CacheTTL        time.Duration
@@ -28,6 +29,7 @@ func Load() Config {
 		DBMinConns:      intEnv("DB_MIN_CONNS", 2),
 		CORSOrigins:     env("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,https://naraya.biz.id,https://www.naraya.biz.id"),
 		WebAccessSecret: env("WEB_ACCESS_SECRET", env("MEDIA_PROXY_SECRET", "")),
+		AppAccessSecret: env("NARAYA_APP_ACCESS_SECRET", env("WEB_ACCESS_SECRET", env("MEDIA_PROXY_SECRET", ""))),
 		InternalToken:   env("NARAYA_INTERNAL_TOKEN", ""),
 		HTTPTimeout:     durationEnv("HTTP_TIMEOUT_SECONDS", 20) * time.Second,
 		CacheTTL:        durationEnv("CACHE_TTL_SECONDS", 300) * time.Second,

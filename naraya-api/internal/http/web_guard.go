@@ -24,13 +24,16 @@ func requireWebAccess(cfg config.Config) fiber.Handler {
 		if internalToken != "" && hmac.Equal([]byte(c.Get("X-Naraya-Internal")), []byte(internalToken)) {
 			return c.Next()
 		}
+		if validAppAccess(c, cfg.AppAccessSecret) {
+			return c.Next()
+		}
 		if isPublicImageRequest(c) {
 			return c.Next()
 		}
 		if isLikelyBotUA(c.Get("User-Agent")) {
 			return fiber.NewError(fiber.StatusForbidden, "api request denied")
 		}
-		if secret == "" || !hasValidWebContext(c) || !validWebToken(c.Cookies("naraya_web"), c.Get("User-Agent"), secret) {
+		if secret == "" || !hasValidWebContext(c) || !validWebAccessToken(c, secret) {
 			return fiber.NewError(fiber.StatusForbidden, "api request denied")
 		}
 		return c.Next()
@@ -73,6 +76,67 @@ func validWebToken(token string, userAgent string, secret string) bool {
 	}
 	expected := webSignature(parts[0], parts[1], parts[2], secret)
 	return hmac.Equal([]byte(parts[3]), []byte(expected))
+}
+
+func validWebAccessToken(c *fiber.Ctx, secret string) bool {
+	if validWebToken(c.Cookies("naraya_web"), c.Get("User-Agent"), secret) {
+		return true
+	}
+	if !isProtectedMediaRequest(c) {
+		return false
+	}
+	return validWebToken(c.Query("nw"), c.Get("User-Agent"), secret)
+}
+
+func isProtectedMediaRequest(c *fiber.Ctx) bool {
+	if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead {
+		return false
+	}
+	path := c.Path()
+	switch {
+	case strings.HasPrefix(path, "/api/videos/"), strings.HasPrefix(path, "/api/video-source/"):
+		token := strings.Trim(strings.TrimPrefix(strings.TrimPrefix(path, "/api/videos/"), "/api/video-source/"), "/")
+		_, err := proxytoken.Decode(token)
+		return err == nil
+	default:
+		return false
+	}
+}
+
+func validAppAccess(c *fiber.Ctx, secret string) bool {
+	secret = strings.TrimSpace(secret)
+	if secret == "" {
+		return false
+	}
+	appID := strings.TrimSpace(c.Get("X-Naraya-App"))
+	if appID != "id.naraya.app" {
+		return false
+	}
+	version := strings.TrimSpace(c.Get("X-Naraya-App-Version"))
+	if version == "" {
+		return false
+	}
+	timestamp := strings.TrimSpace(c.Get("X-Naraya-App-Timestamp"))
+	signature := strings.TrimSpace(c.Get("X-Naraya-App-Signature"))
+	if timestamp == "" || signature == "" {
+		return false
+	}
+	issuedAt, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false
+	}
+	now := time.Now().Unix()
+	if issuedAt < now-10800 || issuedAt > now+60 {
+		return false
+	}
+	expected := appSignature(timestamp, appID, version, c.Get("User-Agent"), secret)
+	return hmac.Equal([]byte(signature), []byte(expected))
+}
+
+func appSignature(timestamp string, appID string, version string, userAgent string, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(timestamp + "|" + appID + "|" + version + "|" + strings.TrimSpace(userAgent)))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 func webSignature(expiresAt string, uaHash string, nonce string, secret string) string {

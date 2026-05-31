@@ -12,10 +12,26 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default async function RegisterPage() {
+type RegisterPageProps = {
+  searchParams?: { next?: string | string[] } | Promise<{ next?: string | string[] }>;
+};
+
+function firstParam(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function safeNextPath(value?: string) {
+  if (!value || !value.startsWith('/') || value.startsWith('//')) return '/profile';
+  if (value.startsWith('/api/') || value.startsWith('/download/android')) return '/profile';
+  return value;
+}
+
+export default async function RegisterPage({ searchParams }: RegisterPageProps) {
+  const params = searchParams ? await searchParams : {};
+  const next = safeNextPath(firstParam(params.next));
   const user = await getMe();
   if (user) {
-    redirect('/profile');
+    redirect(next);
   }
 
   return (

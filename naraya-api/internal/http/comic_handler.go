@@ -13,13 +13,14 @@ import (
 )
 
 type ComicHandler struct {
-	service *scraper.Service
+	service         *scraper.Service
+	appAccessSecret string
 }
 
 var imageHTTPClient = stdhttp.Client{Timeout: 20 * time.Second}
 
-func NewComicHandler(service *scraper.Service) *ComicHandler {
-	return &ComicHandler{service: service}
+func NewComicHandler(service *scraper.Service, appAccessSecret string) *ComicHandler {
+	return &ComicHandler{service: service, appAccessSecret: strings.TrimSpace(appAccessSecret)}
 }
 
 func (h *ComicHandler) Health(c *fiber.Ctx) error {
@@ -152,7 +153,7 @@ func (h *ComicHandler) Episode(c *fiber.Ctx) error {
 }
 
 func (h *ComicHandler) VideoSource(c *fiber.Ctx) error {
-	if !allowMediaRequest(c) {
+	if !allowMediaRequest(c, h.appAccessSecret) {
 		return fiber.NewError(fiber.StatusForbidden, "media request denied")
 	}
 	setPrivateMediaHeaders(c, "application/json")
@@ -173,7 +174,7 @@ func (h *ComicHandler) Image(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusBadRequest, "invalid image token")
 	}
 	publicImage := scope == "public-image"
-	if !publicImage && !allowMediaRequest(c) {
+	if !publicImage && !allowMediaRequest(c, h.appAccessSecret) {
 		return fiber.NewError(fiber.StatusForbidden, "media request denied")
 	}
 	if !strings.HasPrefix(target, "https://") && !strings.HasPrefix(target, "http://") {
@@ -211,7 +212,7 @@ func (h *ComicHandler) Image(c *fiber.Ctx) error {
 }
 
 func (h *ComicHandler) Video(c *fiber.Ctx) error {
-	if !allowMediaRequest(c) {
+	if !allowMediaRequest(c, h.appAccessSecret) {
 		return fiber.NewError(fiber.StatusForbidden, "media request denied")
 	}
 	target, err := proxytoken.Decode(c.Params("token"))
@@ -282,7 +283,10 @@ func setPublicImageHeaders(c *fiber.Ctx, contentType string) {
 	c.Set("Cross-Origin-Resource-Policy", "cross-origin")
 }
 
-func allowMediaRequest(c *fiber.Ctx) bool {
+func allowMediaRequest(c *fiber.Ctx, appAccessSecret string) bool {
+	if validAppAccess(c, appAccessSecret) {
+		return true
+	}
 	site := strings.ToLower(strings.TrimSpace(c.Get("Sec-Fetch-Site")))
 	if site == "same-origin" || site == "same-site" {
 		return true

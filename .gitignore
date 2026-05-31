@@ -8,6 +8,7 @@ out/
 # Build outputs
 dist/
 build/
+naraya-android/**/build/
 naraya-api/bin/
 naraya-api/api
 *.exe
@@ -31,6 +32,10 @@ Thumbs.db
 .idea/
 
 # Local debug/runtime files
+.gradle/
+naraya-android/.gradle/
+naraya-android/.kotlin/
+naraya-android/local.properties
 naraya-api/debug/
 naraya-api/api-runtime*.log
 naraya-api/migrate.exe

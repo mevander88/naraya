@@ -8,13 +8,7 @@ export function ScrollRevealActivator() {
 
   useEffect(() => {
     const reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-scroll-reveal]'));
-    if (!nodes.length) return;
-
-    if (reduceQuery.matches) {
-      nodes.forEach((node) => node.classList.add('is-visible'));
-      return;
-    }
+    const observed = new Set<HTMLElement>();
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
@@ -27,14 +21,41 @@ export function ScrollRevealActivator() {
       threshold: 0.12,
     });
 
-    nodes.forEach((node, index) => {
-      if (!node.style.getPropertyValue('--reveal-delay')) {
-        node.style.setProperty('--reveal-delay', `${Math.min(index % 3, 2) * 60}ms`);
-      }
-      observer.observe(node);
-    });
+    function registerNodes() {
+      const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-scroll-reveal]'));
+      nodes.forEach((node) => {
+        if (observed.has(node) || node.classList.contains('is-visible')) return;
+        const index = observed.size;
+        observed.add(node);
 
-    return () => observer.disconnect();
+        if (!node.style.getPropertyValue('--reveal-delay')) {
+          node.style.setProperty('--reveal-delay', `${Math.min(index % 3, 2) * 60}ms`);
+        }
+
+        if (reduceQuery.matches) {
+          node.classList.add('is-visible');
+          return;
+        }
+
+        observer.observe(node);
+      });
+    }
+
+    registerNodes();
+    const animationFrame = window.requestAnimationFrame(registerNodes);
+
+    const mutationObserver = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => mutation.addedNodes.length > 0)) {
+        registerNodes();
+      }
+    });
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      mutationObserver.disconnect();
+      observer.disconnect();
+    };
   }, [pathname]);
 
   return null;

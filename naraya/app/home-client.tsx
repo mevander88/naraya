@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useEffect, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Play } from 'lucide-react';
 import Link from 'next/link';
 import { HomeHeroSlider } from './home-hero-slider';
@@ -20,13 +20,15 @@ function latestHref(item: ComicCardData) {
 }
 
 export function HomeClient({ heroItems = [], comics = [], series = [], genres = [] }: { heroItems?: ComicCardData[]; comics?: ComicCardData[]; series?: ComicCardData[]; genres?: string[] }) {
-  const slides = heroItems.slice(0, 8);
+  const slides = useMemo(() => heroItems.slice(0, 8), [heroItems]);
   const slideCount = slides.length;
   const [activeIndex, setActiveIndex] = useState(0);
+  const [controlIndex, setControlIndex] = useState(0);
   const motionBudget = useMotionBudget();
 
   useEffect(() => {
     setActiveIndex((index) => (slideCount ? index % slideCount : 0));
+    setControlIndex((index) => (slideCount ? index % slideCount : 0));
   }, [slideCount]);
 
   useEffect(() => {
@@ -37,12 +39,17 @@ export function HomeClient({ heroItems = [], comics = [], series = [], genres = 
     return () => window.clearInterval(timer);
   }, [motionBudget.mobile, motionBudget.reduced, motionBudget.saveData, slideCount]);
 
-  useScrollReveal([heroItems.length, comics.length, series.length, genres.length]);
+  const selectSlide = useCallback((index: number) => {
+    setActiveIndex(index);
+    setControlIndex(index);
+  }, []);
+
+  const visibleControlIndex = motionBudget.mobile ? controlIndex : activeIndex;
 
   return (
     <>
       <HomeHeroSlider comics={heroItems} activeIndex={activeIndex} />
-      <HeroControlRail slides={slides} activeIndex={activeIndex} onSelect={setActiveIndex} />
+      <HeroControlRail slides={slides} activeIndex={visibleControlIndex} onSelect={selectSlide} />
       <HomeStaticSections heroItems={heroItems} comics={comics} series={series} genres={genres} />
     </>
   );
@@ -76,39 +83,6 @@ function useMotionBudget() {
   return budget;
 }
 
-function useScrollReveal(dependencies: unknown[]) {
-  useEffect(() => {
-    const reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-scroll-reveal]'));
-    if (!nodes.length) return;
-
-    if (reduceQuery.matches) {
-      nodes.forEach((node) => node.classList.add('is-visible'));
-      return;
-    }
-
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
-        entry.target.classList.add('is-visible');
-        observer.unobserve(entry.target);
-      });
-    }, {
-      rootMargin: '0px 0px -12% 0px',
-      threshold: 0.12,
-    });
-
-    nodes.forEach((node, index) => {
-      if (!node.style.getPropertyValue('--reveal-delay')) {
-        node.style.setProperty('--reveal-delay', `${Math.min(index % 3, 2) * 60}ms`);
-      }
-      observer.observe(node);
-    });
-
-    return () => observer.disconnect();
-  }, dependencies);
-}
-
 const HomeStaticSections = memo(function HomeStaticSections({ heroItems, comics, series, genres }: { heroItems: ComicCardData[]; comics: ComicCardData[]; series: ComicCardData[]; genres: string[] }) {
   return (
     <>
@@ -122,7 +96,7 @@ const HomeStaticSections = memo(function HomeStaticSections({ heroItems, comics,
   );
 });
 
-function HeroControlRail({
+const HeroControlRail = memo(function HeroControlRail({
   slides,
   activeIndex,
   onSelect,
@@ -138,7 +112,7 @@ function HeroControlRail({
 
   return (
     <section className="relative z-10 -mt-10 px-container-mobile md:-mt-12 md:px-container-desktop">
-      <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-background/78 shadow-2xl shadow-black/25 backdrop-blur-xl">
+      <div className="home-hero-control-panel overflow-hidden rounded-[2rem] border border-white/10 bg-background/78 shadow-2xl shadow-black/25 backdrop-blur-xl">
         <div className="grid gap-0 md:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.7fr)]">
           <div className="relative min-h-44 overflow-hidden p-5 md:border-r md:border-white/10">
             <img
@@ -146,7 +120,7 @@ function HeroControlRail({
               alt={activeComic.title}
               loading="lazy"
               decoding="async"
-              className="absolute right-0 top-0 h-full w-36 object-cover opacity-25 blur-[1px] md:w-44"
+              className="home-hero-control-ambient absolute right-0 top-0 h-full w-36 object-cover opacity-25 blur-[1px] md:w-44"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-primary/14 via-background/10 to-transparent" />
             <div className="relative max-w-[72%]">
@@ -168,7 +142,7 @@ function HeroControlRail({
             </div>
           </div>
 
-          <div className="flex gap-2 overflow-x-auto overflow-y-visible overscroll-x-contain px-3 pb-3 pt-6 [scrollbar-width:none] md:px-4 md:pb-4 md:pt-7 [&::-webkit-scrollbar]:hidden">
+          <div className="home-slider-strip flex gap-2 overflow-x-auto overflow-y-visible overscroll-x-contain px-3 pb-3 pt-6 [scrollbar-width:none] md:px-4 md:pb-4 md:pt-7 [&::-webkit-scrollbar]:hidden">
             {slides.map((comic, index) => {
               const isActive = index === activeIndex;
 
@@ -189,7 +163,7 @@ function HeroControlRail({
                       alt=""
                       loading="lazy"
                       decoding="async"
-                      className={`image-render-safe h-full w-full object-cover ${isActive ? 'saturate-110' : 'saturate-75 group-hover:saturate-100'}`}
+                      className={`home-slider-thumb image-render-safe h-full w-full object-cover ${isActive ? 'saturate-110' : 'saturate-75 group-hover:saturate-100'}`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-background/82 via-transparent to-transparent" />
                     <span className="absolute bottom-2 left-2 rounded-full bg-background/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-on-surface backdrop-blur">
@@ -209,4 +183,4 @@ function HeroControlRail({
       </div>
     </section>
   );
-}
+});

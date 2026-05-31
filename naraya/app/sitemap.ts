@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { stat } from 'node:fs/promises';
 import { getLatestComics, getSitemapCatalogItems, getSitemapSeriesItems } from './data';
 
 export const dynamic = 'force-dynamic';
@@ -9,10 +10,12 @@ type ChangeFrequency = NonNullable<MetadataRoute.Sitemap[number]['changeFrequenc
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://naraya.biz.id';
   const now = new Date();
-  const [catalog, series, latestComicPages] = await Promise.all([
+  const apkPath = process.env.NARAYA_ANDROID_APK_PATH || '/var/www/naraya/naraya-android/app/build/outputs/apk/debug/app-debug.apk';
+  const [catalog, series, latestComicPages, apkInfo] = await Promise.all([
     getSitemapCatalogItems(),
     getSitemapSeriesItems(),
     Promise.all([getLatestComics(1), getLatestComics(2)]),
+    stat(/* turbopackIgnore: true */ apkPath).catch(() => null),
   ]);
   const latestComics = latestComicPages.flat().filter((item, index, list) => (
     item.slug && list.findIndex((candidate) => candidate.slug === item.slug) === index
@@ -32,6 +35,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   pushRoute('/anime-indo', now, 'daily', 0.95);
   pushRoute('/indeks', now, 'weekly', 0.86);
   pushRoute('/explore', now, 'weekly', 0.82);
+  pushRoute('/download', apkInfo?.isFile() ? apkInfo.mtime : now, 'weekly', 0.58);
   pushRoute('/amp', now, 'daily', 0.7);
 
   [...catalog, ...series].forEach((item) => {

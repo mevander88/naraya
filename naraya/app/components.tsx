@@ -47,7 +47,7 @@ export const GenreChips = memo(function GenreChips({ activeGenre = 'All', genres
   if (!genres.length) return null;
 
   return (
-    <section data-scroll-reveal className="scroll-reveal content-visibility-auto mt-14 px-container-mobile md:px-container-desktop">
+    <section data-scroll-reveal className="scroll-reveal mt-14 px-container-mobile md:px-container-desktop">
       <h2 className="font-display text-2xl font-semibold text-on-background">Genre Populer</h2>
       <div className="hide-scrollbar mt-6 flex gap-3 overflow-x-auto pb-2">
         {genres.slice(0, 18).map((genre) => (
@@ -68,7 +68,7 @@ export const GenreChips = memo(function GenreChips({ activeGenre = 'All', genres
 
 export const TrendingRail = memo(function TrendingRail({ title = 'Trending Hari Ini', href = '/explore', comics = [] }: { title?: string; href?: string; comics?: ComicCardData[] }) {
   return (
-    <section data-scroll-reveal className="scroll-reveal content-visibility-auto mt-14 px-container-mobile md:px-container-desktop">
+    <section data-scroll-reveal className="scroll-reveal mt-14 px-container-mobile md:px-container-desktop">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h2 className="min-w-0 font-display text-2xl font-semibold text-on-background">{title}</h2>
         <Link href={href} className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10">
@@ -76,7 +76,7 @@ export const TrendingRail = memo(function TrendingRail({ title = 'Trending Hari 
           <ArrowRight size={16} />
         </Link>
       </div>
-      <div className="hide-scrollbar flex snap-x gap-4 overflow-x-auto pb-3">
+      <div className="home-horizontal-rail hide-scrollbar flex snap-x gap-4 overflow-x-auto pb-3">
         {comics.map((comic, index) => (
           <div key={comic.title} className="w-44 shrink-0 snap-start md:w-56">
             <ComicCard comic={comic} priority={index < 2} />
@@ -111,7 +111,7 @@ export const UpdatesGrid = memo(function UpdatesGrid({ title = 'Update Terbaru',
   const secondaryUpdates = liveUpdates.slice(1);
 
   return (
-    <section data-scroll-reveal className="scroll-reveal content-visibility-auto mt-20 px-container-mobile pb-16 md:px-container-desktop">
+    <section data-scroll-reveal className="scroll-reveal mt-20 px-container-mobile pb-16 md:px-container-desktop">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-3">
         <h2 className="min-w-0 font-display text-2xl font-semibold text-on-background">{title}</h2>
         <Link href="/indeks" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10" aria-label="Buka indeks komik dan anime">

@@ -4,7 +4,8 @@ const COOKIE_NAME = 'naraya_web';
 const TOKEN_TTL_SECONDS = 2 * 60 * 60;
 
 export async function proxy(request: NextRequest) {
-  const ampURL = ampURLForPath(request.nextUrl.pathname);
+  const pathname = request.nextUrl.pathname;
+  const ampURL = ampURLForPath(pathname);
   const response = NextResponse.next();
 
   if (ampURL) {

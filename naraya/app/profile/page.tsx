@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Settings } from 'lucide-react';
+import { Download, Settings } from 'lucide-react';
 import { AdminMark, isAdminRole } from '../admin-mark';
 import { LogoutButton } from '../auth-client';
 import { CommentHistorySection, LoveHistorySection } from './profile-history-sections';
@@ -49,6 +49,10 @@ export default async function ProfilePage() {
           </div>
           <p className="mt-2 max-w-xl break-words text-on-surface-variant">{user.bio}</p>
           <div className="mt-4 flex flex-wrap gap-3 md:hidden">
+            <Link href="/download" className="inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
+              <Download size={17} />
+              <span className="truncate">Install App</span>
+            </Link>
             <Link href="/settings" className="inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-4 py-2.5 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
               <Settings size={17} />
               <span className="truncate">Settings</span>
@@ -72,6 +76,12 @@ export default async function ProfilePage() {
             ))}
           </div>
         </div>
+      </div>
+      <div className="mt-5 hidden md:block">
+        <Link href="/download" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-5 py-3 text-sm font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
+          <Download size={18} />
+          Install Naraya Android
+        </Link>
       </div>
       <LoveHistorySection loves={loves} total={profileStats.loveTotal} />
       <CommentHistorySection initialPage={comments} library={library} />

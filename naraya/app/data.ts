@@ -345,24 +345,84 @@ function sanitizeCatalogItem(item: CatalogItem): CatalogItem {
 }
 
 export async function getHomeData(): Promise<{ featured: ComicCardData[]; comics: ComicCardData[]; series: ComicCardData[]; genres: CatalogItem[] }> {
+  const empty = { featured: [], comics: [], series: [], genres: [] as CatalogItem[] };
   try {
-    const response = await fetch(`${apiBaseURL()}/home`, {
-      next: { revalidate: 120 },
+    const response = await fetchWithRetry(`${apiBaseURL()}/home`, {
+      cache: 'no-store',
       headers: internalHeaders(),
-    });
+    }, 2);
     if (!response.ok) {
-      return { featured: [], comics: [], series: [], genres: [] };
+      return homeFallback();
     }
     const payload = (await response.json()) as HomePayload;
-    return {
+    const home = {
       featured: (payload.featured ?? []).map((item, index) => mapApiComic(item, index, item.kind || 'comic', '#Featured')),
       comics: (payload.comics ?? []).map((item, index) => mapApiComic(item, index, 'comic', '#1 Komik')),
       series: (payload.series ?? []).map((item, index) => mapApiComic(item, index, 'series', '#1 Anime')),
       genres: (payload.genres ?? []).map(sanitizeCatalogItem),
     };
+    if (!home.featured.length && !home.comics.length && !home.series.length) {
+      return homeFallback();
+    }
+    return home;
   } catch {
-    return { featured: [], comics: [], series: [], genres: [] };
+    return homeFallback().catch(() => empty);
   }
+}
+
+async function homeFallback(): Promise<{ featured: ComicCardData[]; comics: ComicCardData[]; series: ComicCardData[]; genres: CatalogItem[] }> {
+  const [comics, series] = await Promise.all([getLatestComicsNoStore(), getLatestSeriesNoStore()]);
+  return {
+    featured: [...series.slice(0, 4), ...comics.slice(0, 4)],
+    comics,
+    series,
+    genres: [],
+  };
+}
+
+async function getLatestComicsNoStore(page = 1): Promise<ComicCardData[]> {
+  try {
+    const response = await fetchWithRetry(`${apiBaseURL()}/comics/latest?page=${page}`, {
+      cache: 'no-store',
+      headers: internalHeaders(),
+    }, 2);
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { items?: ApiComic[] };
+    return (payload.items ?? []).map((item, index) => mapApiComic(item, index, 'comic', '#1 Komik'));
+  } catch {
+    return [];
+  }
+}
+
+async function getLatestSeriesNoStore(page = 1): Promise<ComicCardData[]> {
+  try {
+    const response = await fetchWithRetry(`${apiBaseURL()}/series/latest?page=${page}`, {
+      cache: 'no-store',
+      headers: internalHeaders(),
+    }, 2);
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { items?: ApiComic[] };
+    return (payload.items ?? []).map((item, index) => mapApiComic(item, index, 'series', '#1 Anime'));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchWithRetry(input: string, init: RequestInit, attempts: number) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(input, init);
+      if (response.ok || response.status < 500) return response;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 180));
+    }
+  }
+  if (lastError) throw lastError;
+  return fetch(input, init);
 }
 
 export async function getCatalogItems(page = 1, filters: { genre?: string; type?: string; status?: string } = {}): Promise<{ page: number; totalPages: number; items: CatalogItem[] }> {
