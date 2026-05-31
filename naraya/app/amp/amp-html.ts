@@ -53,11 +53,13 @@ type AmpDocument = {
 };
 
 export function ampResponse(document: AmpDocument) {
+  const canonical = `${SITE_URL}${document.canonicalPath}`;
+  const ampURL = `${SITE_URL}/amp${document.canonicalPath === '/' ? '' : document.canonicalPath}`;
   return new Response(renderAmpDocument(document), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'public, max-age=300, s-maxage=600, stale-while-revalidate=86400',
-      'X-Robots-Tag': 'index, follow',
+      Link: `<${canonical}>; rel="canonical", <${ampURL}>; rel="self"`,
     },
   });
 }
@@ -163,13 +165,11 @@ function renderAmpDocument(document: AmpDocument) {
     <meta charset="utf-8">
     <title>${escapeHTML(document.title)}</title>
     <link rel="canonical" href="${escapeAttr(canonical)}">
-    <link rel="self" href="${escapeAttr(ampURL)}">
     <meta name="viewport" content="width=device-width,minimum-scale=1,initial-scale=1">
     <meta name="description" content="${escapeAttr(document.description)}">
     <meta property="og:title" content="${escapeAttr(document.title)}">
     <meta property="og:description" content="${escapeAttr(document.description)}">
     <meta property="og:image" content="${escapeAttr(image)}">
-    <meta name="robots" content="index,follow">
     <script async src="https://cdn.ampproject.org/v0.js"></script>
     ${document.jsonLd ? `<script type="application/ld+json">${escapeScript(JSON.stringify(document.jsonLd))}</script>` : ''}
     <style amp-boilerplate>${AMP_BOILERPLATE}</style><noscript><style amp-boilerplate>${AMP_NO_SCRIPT}</style></noscript>

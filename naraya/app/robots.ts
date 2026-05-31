@@ -18,7 +18,7 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: 'https://naraya.biz.id/sitemap.xml',
+    sitemap: ['https://naraya.biz.id/sitemap.xml', 'https://naraya.biz.id/amp-sitemap.xml'],
     host: 'https://naraya.biz.id',
   };
 }
