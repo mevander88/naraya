@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Manrope, Sora } from 'next/font/google';
 import { NavShell } from './nav-shell';
+import { ScrollRevealActivator } from './scroll-reveal-activator';
 import './globals.css';
 
 const manrope = Manrope({
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="id" suppressHydrationWarning className={`dark ${manrope.variable} ${sora.variable}`}>
       <body suppressHydrationWarning className="bg-background font-body text-on-background">
+        <ScrollRevealActivator />
         <NavShell>{children}</NavShell>
       </body>
     </html>

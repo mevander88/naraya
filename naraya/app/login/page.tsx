@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { AuthForm } from '../auth-client';
+import { getMe } from '../data';
+import { redirect } from 'next/navigation';
 
 export const metadata: Metadata = {
   title: 'Login',
@@ -10,7 +12,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const user = await getMe();
+  if (user) {
+    redirect('/profile');
+  }
+
   return (
     <section className="relative grid min-h-screen place-items-center overflow-hidden px-container-mobile py-10 md:px-container-desktop">
       <Link href="/" className="absolute left-container-mobile top-6 z-10 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-container-high/82 text-primary shadow-xl shadow-black/20 transition hover:bg-primary hover:text-on-primary md:left-8" aria-label="Kembali ke Home">

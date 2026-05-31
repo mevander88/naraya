@@ -20,23 +20,28 @@ https://naraya.biz.id
 Fitur publik:
 
 - Home dengan hero, update komik, update anime, dan genre.
+- Anime Indo di `/anime-indo` untuk landing keyword anime Indonesia.
 - Explore dengan pencarian, filter genre, tipe, status, dan infinite loading.
-- Indeks katalog A-Z untuk komik dan anime.
+- Indeks katalog A-Z di `/indeks` untuk komik dan anime.
 - Detail komik dengan cover, sinopsis, info, chapter terbaru, love, share, dan komentar.
 - Detail anime dengan cover, sinopsis, info, episode terbaru, love, share, dan komentar.
 - Reader komik di `/baca/[slug]` dengan infinite chapter rendering dan komentar chapter.
 - Player anime di `/nonton/[slug]` dengan custom controls, fullscreen, seek 10 detik, indikator waktu, komentar episode, dan navigasi episode.
-- Halaman 404, robots.txt, sitemap.xml, Open Graph image, dan metadata SEO.
+- Halaman AMP untuk home, detail komik, dan detail anime.
+- Halaman 404, robots.txt, sitemap.xml, Open Graph image, Twitter card, JSON-LD, dan metadata SEO.
 
 Fitur akun:
 
 - Register, login, logout, dan session cookie.
+- Login/register otomatis redirect ke profile jika session user masih valid.
 - Profile dengan role, settings shortcut mobile, total library, complete, komentar, dan love.
-- Rak/library dengan progress baca/nonton dan akses ke detail item tersimpan.
+- Rak/library dengan tab favorit dan riwayat, filter tipe/status, progress baca/nonton, dan akses ke detail item tersimpan.
 - Settings user: auto bookmark, mature filter, dan high quality images.
 - Riwayat komentar dan riwayat love dengan tampilan ringkas dan view all.
 - Komentar, reply komentar, reload komentar, dan pagination/infinite load.
 - Love komik/anime dengan proteksi agar satu user tidak bisa love target yang sama dua kali.
+- Favorite komik/anime dengan total favorite dan proteksi satu item per user.
+- Progress baca/nonton dihitung dari chapter/episode unik yang sudah dibuka user.
 
 Fitur backend:
 
@@ -45,6 +50,7 @@ Fitur backend:
 - Query count profile dilakukan di backend, bukan dihitung dari array frontend.
 - Pagination komentar menggunakan cursor.
 - Love count disimpan di tabel counter dengan trigger database.
+- Favorite count disimpan di tabel counter dengan trigger database.
 - In-memory cache untuk data scraper yang sering dipakai.
 - PostgreSQL connection pool dengan konfigurasi min/max connection.
 
@@ -75,7 +81,8 @@ SEO:
 
 - Halaman detail komik/anime memakai cover publik sebagai `og:image` jika tersedia.
 - `sitemap.xml` dibuat runtime dari backend `/api/sitemap` memakai internal token.
-- Sitemap memasukkan home, explore, indeks, detail komik, dan detail anime/series.
+- Sitemap memasukkan home, anime indo, explore, indeks, detail komik, detail anime/series, AMP detail, serta route baca/nonton terbaru.
+- JSON-LD dipisahkan di folder `seo/schema` dan dirender sesuai tipe halaman.
 - Halaman privat seperti login, register, profile, library, settings, dan notifications dibuat noindex/disallow.
 - `robots.txt` origin mengizinkan `/api/images/` untuk cover publik, tetapi menolak `/api/` secara umum.
 
@@ -101,8 +108,11 @@ Catatan produksi:
       naraya-frontend.service
   naraya/
     app/
+      amp/
+      anime-indo/
       baca/
       explore/
+      indeks/
       komik/
       library/
       login/
@@ -115,6 +125,8 @@ Catatan produksi:
       data.ts
       robots.ts
       sitemap.ts
+    seo/
+      schema/
     public/
     next.config.mjs
     package.json
@@ -173,11 +185,15 @@ Route publik:
 
 - `/`
 - `/explore`
-- `/komik`
+- `/anime-indo`
+- `/indeks`
 - `/komik/[slug]`
 - `/series/[slug]`
 - `/baca/[slug]`
 - `/nonton/[slug]`
+- `/amp`
+- `/amp/komik/[slug]`
+- `/amp/series/[slug]`
 - `/robots.txt`
 - `/sitemap.xml`
 - `/opengraph-image`
@@ -194,9 +210,9 @@ Route akun:
 
 Route redirect:
 
-- `/baca` redirect ke `/komik`
-- `/nonton` redirect ke `/komik`
-- `/series` redirect ke `/komik`
+- `/baca` redirect ke `/indeks`
+- `/nonton` redirect ke `/indeks`
+- `/series` redirect ke `/indeks`
 
 ## API Backend
 
@@ -231,6 +247,7 @@ Account/internal API:
 - `GET /api/me`
 - `GET /api/me/stats`
 - `GET /api/library`
+- `GET /api/library/:targetSlug/status`
 - `POST /api/library`
 - `DELETE /api/library/:comicSlug`
 - `GET /api/loves/me`
@@ -321,8 +338,11 @@ Kolom penting:
 - `last_chapter_title`
 - `status`
 - `progress_percent`
+- `progress_completed`
+- `progress_total`
 - `is_bookmarked`
 - `content_kind`
+- `content_status`
 - `added_at`
 - `updated_at`
 - `last_read_at`
@@ -332,8 +352,33 @@ Constraint dan index penting:
 - Unique `(user_id, comic_slug)`.
 - `status` dibatasi ke `reading`, `planned`, `completed`, `paused`, `dropped`.
 - `content_kind` dibatasi ke `comic` dan `series`.
+- `content_status` menyimpan status katalog seperti ongoing/complete jika tersedia.
 - `progress_percent` 0 sampai 100.
-- Index user updated, bookmark, kind updated, dan `(user_id, status)`.
+- `progress_completed` dan `progress_total` tidak boleh negatif.
+- Index user updated, bookmark, kind updated, status/kind, content status, dan `(user_id, status)`.
+
+### `naraya_library_progress_items`
+
+Menyimpan chapter/episode unik yang sudah dibaca atau ditonton user.
+
+Kolom penting:
+
+- `id`
+- `user_id`
+- `comic_slug`
+- `content_kind`
+- `chapter_slug`
+- `chapter_title`
+- `read_at`
+- `created_at`
+- `updated_at`
+
+Constraint dan index penting:
+
+- Unique `(user_id, comic_slug, content_kind, chapter_slug)`.
+- `content_kind` dibatasi ke `comic` dan `series`.
+- Target progress wajib memiliki `comic_slug` dan `chapter_slug`.
+- Index by user target dan by target untuk perhitungan progress.
 
 ### `naraya_comments`
 
@@ -400,6 +445,25 @@ Trigger:
 Trigger ini menjaga jumlah love agar tidak perlu dihitung mahal dari tabel
 `naraya_love_items` setiap request detail.
 
+### `naraya_favorite_counts`
+
+Counter favorite/bookmark per target.
+
+Kolom:
+
+- `target_slug`
+- `favorite_count`
+- `updated_at`
+
+Trigger:
+
+- `naraya_favorite_counts_insert_trigger`
+- `naraya_favorite_counts_update_trigger`
+- `naraya_favorite_counts_delete_trigger`
+
+Trigger ini menjaga total favorite saat user menambah, menghapus, atau mengubah
+bookmark library.
+
 ## Migrations
 
 Folder migration:
@@ -421,6 +485,11 @@ Urutan migration saat ini:
 - `009_database_hot_path_counters.sql`
 - `010_comment_cursor_indexes.sql`
 - `011_profile_count_indexes.sql`
+- `012_library_favorite_history_split.sql`
+- `013_favorite_counts.sql`
+- `014_library_pagination_indexes.sql`
+- `015_library_content_status.sql`
+- `016_library_unique_progress.sql`
 
 Jalankan migrasi dari folder backend:
 
@@ -670,7 +739,8 @@ Frontend:
 
 ```bash
 curl -I https://naraya.biz.id
-curl -I https://naraya.biz.id/komik
+curl -I https://naraya.biz.id/anime-indo
+curl -I https://naraya.biz.id/indeks
 ```
 
 Static asset:

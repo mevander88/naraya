@@ -1,63 +1,61 @@
 import type { MetadataRoute } from 'next';
-import { getSitemapCatalogItems, getSitemapSeriesItems } from './data';
+import { getLatestComics, getSitemapCatalogItems, getSitemapSeriesItems } from './data';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 
+type ChangeFrequency = NonNullable<MetadataRoute.Sitemap[number]['changeFrequency']>;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://naraya.biz.id';
   const now = new Date();
-  const [catalog, series] = await Promise.all([getSitemapCatalogItems(), getSitemapSeriesItems()]);
-  const staticRoutes = ['', '/anime-indo', '/explore', '/indeks'].map((path) => ({
-    url: `${base}${path}`,
-    lastModified: now,
-    changeFrequency: path === '' ? ('daily' as const) : ('weekly' as const),
-    priority: path === '' ? 1 : path === '/anime-indo' ? 0.95 : 0.8,
-  }));
-  const ampStaticRoutes = [{
-    url: `${base}/amp`,
-    lastModified: now,
-    changeFrequency: 'daily' as const,
-    priority: 0.7,
-  }];
+  const [catalog, series, latestComicPages] = await Promise.all([
+    getSitemapCatalogItems(),
+    getSitemapSeriesItems(),
+    Promise.all([getLatestComics(1), getLatestComics(2)]),
+  ]);
+  const latestComics = latestComicPages.flat().filter((item, index, list) => (
+    item.slug && list.findIndex((candidate) => candidate.slug === item.slug) === index
+  ));
   const seen = new Set<string>();
-  const catalogRoutes = [...catalog, ...series].flatMap((item) => {
-    if (!item.slug || (item.kind !== 'series' && item.kind !== 'comic')) return [];
-    const section = item.kind === 'series' ? 'series' : 'komik';
-    const url = `${base}/${section}/${item.slug}`;
-    if (seen.has(url)) return [];
+  const routes: MetadataRoute.Sitemap = [];
+
+  const pushRoute = (path: string, lastModified: Date, changeFrequency: ChangeFrequency, priority: number) => {
+    const normalizedPath = path === '' ? '/' : path;
+    const url = `${base}${normalizedPath === '/' ? '' : normalizedPath}`;
+    if (seen.has(url)) return;
     seen.add(url);
+    routes.push({ url, lastModified, changeFrequency, priority });
+  };
+
+  pushRoute('/', now, 'daily', 1);
+  pushRoute('/anime-indo', now, 'daily', 0.95);
+  pushRoute('/indeks', now, 'weekly', 0.86);
+  pushRoute('/explore', now, 'weekly', 0.82);
+  pushRoute('/amp', now, 'daily', 0.7);
+
+  [...catalog, ...series].forEach((item) => {
+    if (!item.slug || (item.kind !== 'series' && item.kind !== 'comic')) return;
+    const section = item.kind === 'series' ? 'series' : 'komik';
     const lastModified = safeDate(item.lastMod, now);
-    const routes: MetadataRoute.Sitemap = [
-      {
-        url,
-        lastModified,
-        changeFrequency: 'weekly' as const,
-        priority: item.kind === 'series' ? 0.72 : 0.75,
-      },
-      {
-        url: `${base}/amp/${section}/${item.slug}`,
-        lastModified,
-        changeFrequency: 'weekly' as const,
-        priority: item.kind === 'series' ? 0.52 : 0.55,
-      },
-    ];
+
+    pushRoute(`/${section}/${item.slug}`, lastModified, 'weekly', item.kind === 'series' ? 0.72 : 0.75);
+    pushRoute(`/amp/${section}/${item.slug}`, lastModified, 'weekly', item.kind === 'series' ? 0.52 : 0.55);
+
     if (item.kind === 'series' && item.latestChapterSlug) {
-      const episodeURL = `${base}/nonton/${item.latestChapterSlug}`;
-      if (!seen.has(episodeURL)) {
-        seen.add(episodeURL);
-        routes.push({
-          url: episodeURL,
-          lastModified,
-          changeFrequency: 'weekly' as const,
-          priority: 0.62,
-        });
-      }
+      pushRoute(`/nonton/${item.latestChapterSlug}`, lastModified, 'daily', 0.64);
     }
-    return routes;
   });
 
-  return [...staticRoutes, ...ampStaticRoutes, ...catalogRoutes];
+  latestComics.forEach((item) => {
+    if (!item.slug) return;
+    pushRoute(`/komik/${item.slug}`, now, 'weekly', 0.75);
+    if (item.latestChapterSlug) {
+      pushRoute(`/baca/${item.latestChapterSlug}`, now, 'daily', 0.64);
+    }
+  });
+
+  return routes;
 }
 
 function safeDate(value: string, fallback: Date) {

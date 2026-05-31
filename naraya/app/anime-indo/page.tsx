@@ -34,7 +34,6 @@ export default async function AnimeIndoPage() {
   const anime = [...firstPage, ...secondPage].filter((item, index, list) => (
     item.slug && list.findIndex((candidate) => candidate.slug === item.slug) === index
   ));
-  const lead = anime[0];
   const itemListSchema = buildItemListSchema({
     name: 'Anime Indo terbaru Naraya',
     path: '/anime-indo',
@@ -55,46 +54,27 @@ export default async function AnimeIndoPage() {
   return (
     <section className="px-container-mobile pb-24 pt-28 md:px-container-desktop">
       <JsonLd data={[itemListSchema, breadcrumbSchema]} />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(260px,0.55fr)] lg:items-end">
-        <div className="min-w-0">
-          <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-primary">Anime Indo</p>
-          <h1 className="mt-4 max-w-4xl break-words font-display text-4xl font-bold leading-tight text-on-background md:text-6xl">
-            Anime Indo terbaru untuk nonton anime sub indo
-          </h1>
-          <p className="mt-5 max-w-3xl text-base leading-7 text-on-surface-variant md:text-lg md:leading-8">
-            Jelajahi update anime Indo, episode terbaru, anime sub indo, dan rekomendasi anime dari katalog Naraya.
-          </p>
-          <div className="mt-7 flex flex-wrap gap-3">
-            <Link href="/indeks?type=Anime" className="interactive-lift inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
-              Buka indeks anime
-              <ArrowRight size={18} />
-            </Link>
-            <Link href="/explore?type=Anime" className="interactive-lift inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-6 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
-              Filter anime
-            </Link>
-          </div>
-        </div>
-        {lead ? (
-          <Link href={`/series/${lead.slug}`} className="group block min-w-0 overflow-hidden rounded-[1.5rem] bg-surface-container-low shadow-2xl shadow-black/25 ring-1 ring-white/8">
-            <div className="grid grid-cols-[8.5rem_minmax(0,1fr)] gap-4 p-4">
-              <img src={lead.image} alt={lead.title} width={160} height={240} fetchPriority="high" decoding="async" className="aspect-[2/3] w-full rounded-xl object-cover shadow-xl shadow-black/25" />
-              <div className="min-w-0 self-center">
-                <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-primary">Update pilihan</p>
-                <h2 className="mt-2 line-clamp-3 break-words font-display text-2xl font-bold text-on-surface transition group-hover:text-primary">{lead.title}</h2>
-                <p className="mt-2 line-clamp-2 text-sm leading-6 text-on-surface-variant">{lead.episode}</p>
-              </div>
-            </div>
+      <div className="min-w-0">
+        <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-primary">Anime Indo</p>
+        <h1 className="mt-4 max-w-4xl break-words font-display text-4xl font-bold leading-tight text-on-background md:text-6xl">
+          Anime Indo terbaru untuk nonton anime sub indo
+        </h1>
+        <p className="mt-5 max-w-3xl text-base leading-7 text-on-surface-variant md:text-lg md:leading-8">
+          Jelajahi update anime Indo, episode terbaru, anime sub indo, dan rekomendasi anime dari katalog Naraya.
+        </p>
+        <div className="mt-7 flex flex-wrap gap-3">
+          <Link href="/indeks?type=Anime" className="interactive-lift inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 font-semibold text-on-primary shadow-glow transition hover:brightness-110 active:scale-95">
+            Buka indeks anime
+            <ArrowRight size={18} />
           </Link>
-        ) : null}
-      </div>
-
-      <div className="-mx-container-mobile mt-8 md:-mx-container-desktop">
-        <TrendingRail title="Anime Indo Populer" href="/indeks?type=Anime" comics={anime.slice(0, 18)} />
-        <UpdatesGrid title="Update Anime Indo Terbaru" comics={anime.slice(0, 18)} />
+          <Link href="/explore?type=Anime" className="interactive-lift inline-flex items-center gap-2 rounded-xl border border-white/10 bg-surface-container-high px-6 py-3 font-semibold text-primary transition hover:border-primary/50 hover:bg-primary/10 active:scale-95">
+            Filter anime
+          </Link>
+        </div>
       </div>
 
       {anime.length ? (
-        <div className="mt-16">
+        <div className="mt-12">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-display text-2xl font-semibold text-on-background">Daftar anime Indo</h2>
             <Link href="/explore?type=Anime" className="text-sm font-semibold text-primary hover:underline">Explore anime</Link>
@@ -106,6 +86,11 @@ export default async function AnimeIndoPage() {
           </div>
         </div>
       ) : null}
+
+      <div className="-mx-container-mobile mt-8 md:-mx-container-desktop">
+        <TrendingRail title="Anime Indo Populer" href="/indeks?type=Anime" comics={anime.slice(0, 18)} />
+        <UpdatesGrid title="Update Anime Indo Terbaru" comics={anime.slice(0, 18)} />
+      </div>
     </section>
   );
 }
