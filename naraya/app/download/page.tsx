@@ -12,8 +12,8 @@ export const metadata: Metadata = {
 export const dynamic = 'force-dynamic';
 
 const APK_PATH = process.env.NARAYA_ANDROID_APK_PATH || '/var/www/naraya/naraya-android/app/build/outputs/apk/web/debug/app-web-debug.apk';
-const ANDROID_VERSION_CODE = process.env.NARAYA_ANDROID_VERSION_CODE || '37';
-const ANDROID_VERSION_NAME = process.env.NARAYA_ANDROID_VERSION_NAME || '1.0.36-beta';
+const ANDROID_VERSION_CODE = process.env.NARAYA_ANDROID_VERSION_CODE || '38';
+const ANDROID_VERSION_NAME = process.env.NARAYA_ANDROID_VERSION_NAME || '1.0.37-beta';
 
 function formatBytes(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';

@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const APK_PATH = process.env.NARAYA_ANDROID_APK_PATH || '/var/www/naraya/naraya-android/app/build/outputs/apk/web/debug/app-web-debug.apk';
-const VERSION_CODE = Number.parseInt(process.env.NARAYA_ANDROID_VERSION_CODE || '37', 10);
-const VERSION_NAME = process.env.NARAYA_ANDROID_VERSION_NAME || '1.0.36-beta';
+const VERSION_CODE = Number.parseInt(process.env.NARAYA_ANDROID_VERSION_CODE || '38', 10);
+const VERSION_NAME = process.env.NARAYA_ANDROID_VERSION_NAME || '1.0.37-beta';
 const MIN_SUPPORTED_VERSION_CODE = Number.parseInt(process.env.NARAYA_ANDROID_MIN_SUPPORTED_VERSION_CODE || '1', 10);
 const REQUIRED = process.env.NARAYA_ANDROID_UPDATE_REQUIRED === 'true';
 
@@ -54,6 +54,7 @@ function releaseNotes() {
       'Tombol Favorite, Love, dan Share detail APK dibuat icon-only dengan badge jumlah.',
       'PiP nonton APK diperbaiki agar transisi ke popup tidak menghentikan service/player.',
       'Aplikasi Android ditandai sebagai Naraya Beta untuk distribusi awal.',
+      'Kontak iklan dan kerja sama ditambahkan di Settings aplikasi.',
     ];
   }
   return raw.split('|').map((item) => item.trim()).filter(Boolean);

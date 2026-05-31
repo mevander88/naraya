@@ -185,7 +185,7 @@ function renderAmpDocument(document: AmpDocument) {
         <a class="pill" href="${escapeAttr(mainURL)}">Buka versi utama</a>
       </nav>
       ${document.body}
-      <footer class="footer">Naraya</footer>
+      <footer class="footer">Naraya · Iklan/kerja sama: <a href="mailto:serjkrk18@proton.me" rel="nofollow">serjkrk18@proton.me</a></footer>
     </main>
   </body>
 </html>`;

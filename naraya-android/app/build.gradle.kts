@@ -26,8 +26,8 @@ android {
         applicationId = "id.naraya.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 37
-        versionName = "1.0.36-beta"
+        versionCode = 38
+        versionName = "1.0.37-beta"
         buildConfigField("String", "NARAYA_APP_ACCESS_SECRET", "\"${appAccessSecret.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
     }
 

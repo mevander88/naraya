@@ -355,7 +355,12 @@ export function NavShell({ children }: { children: React.ReactNode }) {
             </div>
             <div className="mt-6 flex flex-col gap-2 border-t border-white/8 pt-4 text-xs font-semibold uppercase tracking-[0.16em] text-on-surface-variant sm:flex-row sm:items-center sm:justify-between">
               <span>© {new Date().getFullYear()} Naraya</span>
-              <span>Ruang baca dan nonton yang fokus.</span>
+              <span className="normal-case tracking-normal">
+                Iklan/kerja sama:{' '}
+                <a href="mailto:serjkrk18@proton.me" rel="nofollow" className="text-primary transition hover:text-primary/80">
+                  serjkrk18@proton.me
+                </a>
+              </span>
             </div>
           </div>
         </footer>

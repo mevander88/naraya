@@ -47,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Book
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Fullscreen
@@ -1138,6 +1139,7 @@ private fun SettingsScreen(api: NarayaApiClient, nav: NavHostController, session
             is UiState.Ready -> {
                 val settings = value.value
                 LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    item { AdvertiseContactCard() }
                     item { SettingButton("Auto bookmark", settings.autoBookmark) { scope.launch { state = UiState.Ready(api.updateSettings(UpdateSettingsRequest(autoBookmark = !settings.autoBookmark))) } } }
                     item { SettingButton("Mature filter", settings.matureFilter) { scope.launch { state = UiState.Ready(api.updateSettings(UpdateSettingsRequest(matureFilter = !settings.matureFilter))) } } }
                     item { SettingButton("High quality images", settings.highQualityImages) { scope.launch { state = UiState.Ready(api.updateSettings(UpdateSettingsRequest(highQualityImages = !settings.highQualityImages))) } } }
@@ -1159,6 +1161,44 @@ private fun SettingsScreen(api: NarayaApiClient, nav: NavHostController, session
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvertiseContactCard() {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = NarayaSurface),
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { openAdvertiseEmail(context) }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .background(NarayaPrimary.copy(alpha = 0.14f), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Email, contentDescription = null, tint = NarayaPrimary)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Iklan / kerja sama", color = NarayaText, fontWeight = FontWeight.Bold)
+                Text(
+                    "Hubungi serjkrk18@proton.me",
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
@@ -2727,6 +2767,16 @@ private fun android.content.Context.share(url: String) {
         type = "text/plain"
         putExtra(Intent.EXTRA_TEXT, url)
     }, "Share Naraya"))
+}
+
+private fun openAdvertiseEmail(context: Context) {
+    runCatching {
+        context.startActivity(Intent(Intent.ACTION_SENDTO).apply {
+            data = Uri.parse("mailto:serjkrk18@proton.me")
+            putExtra(Intent.EXTRA_EMAIL, arrayOf("serjkrk18@proton.me"))
+            putExtra(Intent.EXTRA_SUBJECT, "Iklan / kerja sama Naraya")
+        })
+    }
 }
 
 private fun canInstallPackages(context: Context): Boolean {

@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 const APK_PATH = process.env.NARAYA_ANDROID_APK_PATH || '/var/www/naraya/naraya-android/app/build/outputs/apk/web/debug/app-web-debug.apk';
-const VERSION_NAME = process.env.NARAYA_ANDROID_VERSION_NAME || '1.0.36-beta';
+const VERSION_NAME = process.env.NARAYA_ANDROID_VERSION_NAME || '1.0.37-beta';
 
 function apkFileName() {
   return `Naraya-${VERSION_NAME.replace(/[^0-9A-Za-z._-]/g, '') || 'Android'}.apk`;
